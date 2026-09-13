@@ -55,6 +55,15 @@
   .prow b{flex:1; font-size:20px}
   .prow button{padding:8px 10px; font-size:15px; font-weight:700; border-radius:10px; background:var(--line)}
   .prow button.del{background:none; color:#e39b9b}
+  .vrow{display:flex; align-items:center; gap:10px; padding:6px 0; border-top:1px solid var(--line)}
+  .vrow:first-child{border-top:0}
+  .vrow .pick{flex:1; text-align:left; padding:12px 4px; font-size:21px; font-weight:700}
+  .vrow .pick small{display:block; font-size:14px; color:var(--mute); font-weight:600}
+  .vrow.on .pick{color:#8fe0c4}
+  .vrow .pick b{color:#8fe0c4}
+  .vrow .play{width:54px; height:54px; border-radius:50%; background:var(--line); font-size:22px; flex:none}
+  .choose{display:flex; align-items:center; justify-content:space-between; width:100%; padding:10px 0; font-size:18px; border-top:1px solid var(--line); text-align:left}
+  .choose b{color:#8fe0c4; font-weight:700; max-width:55%; text-align:right}
   .bottombar{margin-top:auto; display:flex; justify-content:space-between; padding-top:10px}
   .round{width:62px; height:62px; border-radius:50%; background:var(--card); display:grid; place-items:center}
 
@@ -244,6 +253,26 @@
   <div class="panel" id="histList"></div>
 </section>
 
+<!-- ============ voices ============ -->
+<section class="screen" id="voices">
+  <div class="top">
+    <button class="round" id="voicesBack" aria-label="Back"><svg class="ico"><use href="#i-back"/></svg></button>
+    <h1>Voice</h1>
+  </div>
+  <div class="panel">
+    <h2>Speed</h2>
+    <div class="chips" id="speedChips">
+      <button data-rate="0.8">Slow</button><button data-rate="0.9">Calm</button><button data-rate="1">Normal</button>
+    </div>
+  </div>
+  <div class="panel"><h2>Best quality</h2><div id="voicesBest"></div></div>
+  <div class="panel"><h2>Other voices</h2><div id="voicesOther"></div></div>
+  <div class="panel">
+    <h2>More voices</h2>
+    <p class="note">The iPhone can download much better voices for free: iPhone Settings → Accessibility → Read &amp; Speak (or Spoken Content) → Voices → English. Voices marked <b>Premium</b> or <b>Enhanced</b> sound best — try Jamie, Serena, Ava or Zoe. Then come back here; they appear at the top.</p>
+  </div>
+</section>
+
 <!-- ============ settings ============ -->
 <section class="screen" id="settings">
   <div class="top">
@@ -268,6 +297,7 @@
   <div class="panel">
     <h2>Sound</h2>
     <div class="row">Voice<button class="sw" id="swVoice" role="switch"></button></div>
+    <button class="choose" id="toVoices">Which voice<b id="voiceNow">—</b></button>
     <div class="row">Say the time every 30 s during a PB hold<button class="sw" id="swCall" role="switch"></button></div>
     <div class="row">Play sound with the silent switch on<button class="sw" id="swMedia" role="switch"></button></div>
     <div class="row">Soft breathing-pace tones in routines<button class="sw" id="swPace" role="switch"></button></div>
@@ -297,6 +327,7 @@
       </ul>
       <p>The clock shows the time left in the part you're in. Press and hold anywhere for 1 second to stop the whole routine.</p>
       <p><b>Colours</b> — green: breathe · amber: get ready (last 10 s) · blue: hold · gold: past your PB · purple, indigo, deep blue: the routine parts.</p>
+      <p><b>Choosing the voice</b> — Settings → Sound → Which voice. Tap ▶ to listen, tap the name to choose it, and pick Slow, Calm or Normal speed. Each person has their own. Download better voices for free in iPhone Settings → Accessibility → Read &amp; Speak → Voices → English (look for Premium or Enhanced).</p>
       <p><b>Sound</b> — the voice says "Breathe" and "Hold", counts down the last seconds with beeps, so you can keep your eyes closed. Keep the screen on — the app keeps it awake by itself.</p>
       <p>Before a table you can change the number of rounds and the hold length with − and +. It remembers your choice.</p>
     </details>
@@ -319,6 +350,9 @@
 <script>
 /* ================= version log (newest first — [0] IS the app version) ================= */
 const VERSIONLOG = [
+  { v:'1.4', d:'2026-09-13 21:09', title:'Choose the voice',
+    what:'Settings → Sound → Which voice: every English voice on the phone, the best-quality ones first. Tap ▶ to listen, tap a name to choose it, and pick Slow, Calm or Normal speed. Each person keeps their own choice. Novelty and old robot voices are hidden.',
+    why:'A calmer, more natural voice to train with — using the iPhone\'s own free voices.' },
   { v:'1.3', d:'2026-09-13 18:56', title:'More than one person',
     what:'Tap the name at the top of the home screen to switch person or add someone. Each person has their own personal best, history, table and routine settings, sound settings and PB rest. Your existing data moved over under "Martin". Rename or remove people in Settings. Backups now hold everyone.',
     why:'Two people can train with the same phone without mixing up records.' },
@@ -341,7 +375,7 @@ const REST_MIN = 10;                         // rest after a PB attempt
 /* ================= data ================= */
 function defaults(){
   return { pb:0, sessions:[], lastPbAttempt:0, backupAt:0,
-    set:{ voice:true, callouts:true, media:true, breatheUp:120,
+    set:{ voice:true, voiceURI:'', rate:0.9, callouts:true, media:true, breatheUp:120,
           co2Rounds:8, co2Pct:50, o2Rounds:8, o2Pct:80, routine:0, pace:true } };
 }
 const COLORS = ['#2f5fa0', '#b0506e', '#2e8b6e', '#8a5fb0', '#b07a2e', '#4f7f8f'];
@@ -517,22 +551,35 @@ const paceIn  = s => swell(440, Math.min(2.2, s*.6), .16);
 const paceOut = s => swell(293.66, Math.min(3, s*.5), .14);
 const finishCue = () => { bell(659.25,0,.45,.34); bell(880,.13,.45,.34); bell(1046.5,.26,.8,.36); };
 
-let voice = null;
-function pickVoice(){
+/* ---- voice: Apple's own voices, chosen per person ----
+   The novelty and old robot voices are left out of the list. Downloaded Premium /
+   Enhanced voices sort to the top — they are the ones worth using. */
+const NOVELTY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Fred|Good News|Jester|Junior|Kathy|Organ|Ralph|Superstar|Trinoids|Whisper|Wobble|Zarvox|Deranged|Hysterical|Pipe Organ|Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley)\b/i;
+const isBest = v => /premium|enhanced|neural|siri/i.test(v.name + ' ' + v.voiceURI);
+function englishVoices(){
   const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
-  voice = vs.find(v => /en-GB/i.test(v.lang) && /Daniel|Serena|Kate/i.test(v.name))
-       || vs.find(v => /^en-GB/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)) || null;
+  return vs.filter(v => /^en[-_]/i.test(v.lang) && !NOVELTY.test(v.name));
 }
-if(window.speechSynthesis){ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-function say(text){
-  if(!S.set.voice || !window.speechSynthesis) return;
+function currentVoice(){
+  const vs = englishVoices();
+  if(S && S.set.voiceURI){ const v = vs.find(x => x.voiceURI === S.set.voiceURI); if(v) return v; }
+  return vs.find(v => isBest(v) && /en-GB/i.test(v.lang)) || vs.find(isBest)
+      || vs.find(v => /en-GB/i.test(v.lang) && /Daniel|Serena|Kate/i.test(v.name))
+      || vs.find(v => /^en-GB/i.test(v.lang)) || vs[0] || null;
+}
+function speak(text, v, rate){
+  if(!window.speechSynthesis) return;
   try{
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    if(voice) u.voice = voice;
-    u.lang = voice ? voice.lang : 'en-GB'; u.rate = .92; u.volume = 1;
+    if(v){ u.voice = v; u.lang = v.lang; } else u.lang = 'en-GB';
+    u.rate = rate; u.volume = 1;
     speechSynthesis.speak(u);
   }catch(e){}
+}
+function say(text){
+  if(!S.set.voice) return;
+  speak(text, currentVoice(), S.set.rate || .9);
 }
 function sayTime(s){
   const m = Math.floor(s/60), r = s % 60;
@@ -943,7 +990,7 @@ $('testSound').addEventListener('click', () => {
   setTimeout(() => { breatheCue(); setTimeout(() => say('Breathe'), 450); }, 4800);
   setTimeout(releaseMedia, 8000);
 });
-$('toSettings').addEventListener('click', () => { syncSw(); renderPeopleRows(); show('settings'); });
+$('toSettings').addEventListener('click', () => { syncSw(); renderPeopleRows(); renderVoiceNow(); show('settings'); });
 $('vlog').innerHTML = VERSIONLOG.map(v => `<p><b>v${v.v} — ${v.title}</b><br><small>${v.d}</small><br>${v.what}<br><span class="why">${v.why}</span></p>`).join('');
 $('verLine').textContent = 'AMS Apnea v' + VERSIONLOG[0].v;
 
@@ -1011,6 +1058,32 @@ function applyUpdate(){
 }
 $('updateBtn').addEventListener('click', () => checkForUpdate(true));
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !run) checkForUpdate(false); });
+
+/* ================= voice chooser ================= */
+const cleanName = v => v.name.replace(/\s*\((English|en)[^)]*\)/i, '');
+const langName = l => ({ 'en-GB':'British', 'en-US':'American', 'en-AU':'Australian', 'en-IE':'Irish', 'en-IN':'Indian', 'en-ZA':'South African', 'en-NZ':'New Zealand', 'en-SC':'Scottish' })[l.replace('_','-')] || l;
+function renderVoiceNow(){ const v = currentVoice(); $('voiceNow').textContent = v ? cleanName(v) : 'iPhone default'; }
+function renderVoices(){
+  const cur = currentVoice(), vs = englishVoices().sort((a,b) => (/en-GB/i.test(b.lang) - /en-GB/i.test(a.lang)) || a.name.localeCompare(b.name));
+  const row = v => `<div class="vrow ${cur && v.voiceURI === cur.voiceURI ? 'on' : ''}">
+      <button class="pick" data-voice="${esc(v.voiceURI)}">${cur && v.voiceURI === cur.voiceURI ? '<b>✓</b> ' : ''}${esc(cleanName(v))}<small>${langName(v.lang)}</small></button>
+      <button class="play" data-play="${esc(v.voiceURI)}" aria-label="Listen">▶</button></div>`;
+  const best = vs.filter(isBest), other = vs.filter(v => !isBest(v));
+  $('voicesBest').innerHTML = best.length ? best.map(row).join('') : '<p class="note">None on this phone yet — see "More voices" below.</p>';
+  $('voicesOther').innerHTML = other.map(row).join('') || '<p class="note">No English voices found.</p>';
+  document.querySelectorAll('#speedChips button').forEach(b => b.classList.toggle('on', +b.dataset.rate === (S.set.rate || .9)));
+}
+const SAMPLE = 'Breathe in. Slowly. And hold.';
+$('toVoices').addEventListener('click', () => { renderVoices(); show('voices'); });
+$('voicesBack').addEventListener('click', () => { speechSynthesis && speechSynthesis.cancel(); syncSw(); renderVoiceNow(); show('settings'); });
+$('voices').addEventListener('click', e => {
+  const byURI = u => englishVoices().find(v => v.voiceURI === u);
+  const pl = e.target.closest('[data-play]'), pk = e.target.closest('[data-voice]'), rt = e.target.closest('[data-rate]');
+  if(pl){ speak(SAMPLE, byURI(pl.dataset.play), S.set.rate || .9); }
+  else if(pk){ S.set.voiceURI = pk.dataset.voice; save(); renderVoices(); speak(SAMPLE, byURI(pk.dataset.voice), S.set.rate || .9); }
+  else if(rt){ S.set.rate = +rt.dataset.rate; save(); renderVoices(); speak(SAMPLE, currentVoice(), S.set.rate); }
+});
+if(window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { if($('voices').classList.contains('on')) renderVoices(); if($('settings').classList.contains('on')) renderVoiceNow(); };
 
 /* ================= people ================= */
 const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
