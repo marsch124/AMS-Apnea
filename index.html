@@ -67,6 +67,11 @@
   #run{padding:0; transition:background-color .6s; touch-action:none; position:relative; overflow:hidden}
   #run.breathe{background:var(--breathe)} #run.ready{background:var(--ready)}
   #run.hold{background:var(--hold)} #run.record{background:var(--gold)}
+  #run.stretch{background:#5b4270} #run.relax{background:#2c2f5e} #run.final{background:#1d4f63}
+  .chips{display:flex; gap:8px; padding:4px 0 8px}
+  .chips button{flex:1; height:58px; border-radius:14px; background:var(--line); font-size:22px; font-weight:800}
+  .chips button.on{background:var(--pb)}
+  .dot.stretch{background:#a784c4} .dot.relax{background:#8c90d8} .dot.final{background:#5fb0cc}
   #run .inner{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding:calc(env(safe-area-inset-top) + 24px) 16px calc(env(safe-area-inset-bottom) + 24px)}
   #rounds{display:flex; flex-wrap:wrap; gap:12px; justify-content:center; min-height:26px}
@@ -75,6 +80,7 @@
   #rounds i.now{width:26px; height:26px; margin-top:-4px; border-color:#fff}
   #word{margin-top:auto; font-size:min(13vw,64px); font-weight:800; letter-spacing:.06em}
   #clock{font-size:min(36vw,30vh); font-weight:800; line-height:1; text-shadow:0 2px 3px rgba(0,0,0,.35)}
+  #clock.long{font-size:min(26vw,24vh)}                 /* 10:00 and over: five characters must still fit */
   #marks{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; min-height:22px; max-width:90%; margin-top:14px}
   #marks i{width:20px; height:20px; border-radius:50%; background:rgba(255,255,255,.85)}
   #stopwrap{margin-top:auto; position:relative; width:96px; height:96px; display:grid; place-items:center}
@@ -231,6 +237,7 @@
     <div class="row">Voice<button class="sw" id="swVoice" role="switch"></button></div>
     <div class="row">Say the time every 30 s during a PB hold<button class="sw" id="swCall" role="switch"></button></div>
     <div class="row">Play sound with the silent switch on<button class="sw" id="swMedia" role="switch"></button></div>
+    <div class="row">Soft breathing-pace tones in routines<button class="sw" id="swPace" role="switch"></button></div>
     <button class="btn" id="testSound">🔊 Test the sound</button>
   </div>
 
@@ -247,7 +254,15 @@
       <p><b>PB attempt</b> — a calm breathe-up, then one hold for as long as you like. Beat your PB and the screen turns gold and your PB updates itself.</p>
       <p><b>During a hold</b> — tap anywhere on the screen each time you feel a contraction. Each tap adds a white dot.</p>
       <p><b>To stop</b> — press and hold anywhere for one second. In a PB attempt that ends the hold and saves it.</p>
-      <p><b>Colours</b> — green: breathe · amber: get ready (last 10 s) · blue: hold · gold: past your PB.</p>
+      <p><b>Pre-routines</b> — on the PB screen, pick 30, 40, 45, 50 or 60 minutes (— means just the breathe-up). The voice leads you through four parts and then straight into your PB hold:</p>
+      <ul>
+        <li><b>Stretching</b> (purple) — neck, shoulders, ribs, twists, cat-cow, child's pose, belly breaths. "Other side" is said halfway.</li>
+        <li><b>Meditation</b> (indigo) — lying down, a slow body scan, then quiet.</li>
+        <li><b>Breathing</b> (green) — slow breathing to soft pace tones (a higher tone: breathe in, a lower tone: breathe out) and two easy warm-up holds, about 40 % and 60 % of your PB. Tap for contractions in these too.</li>
+        <li><b>Final prep</b> (deep blue) — picture the hold, then a slow breathe-up that ends with "breathe in… Hold".</li>
+      </ul>
+      <p>The clock shows the time left in the part you're in. Press and hold anywhere for 1 second to stop the whole routine.</p>
+      <p><b>Colours</b> — green: breathe · amber: get ready (last 10 s) · blue: hold · gold: past your PB · purple, indigo, deep blue: the routine parts.</p>
       <p><b>Sound</b> — the voice says "Breathe" and "Hold", counts down the last seconds with beeps, so you can keep your eyes closed. Keep the screen on — the app keeps it awake by itself.</p>
       <p>Before a table you can change the number of rounds and the hold length with − and +. It remembers your choice.</p>
     </details>
@@ -270,6 +285,9 @@
 <script>
 /* ================= version log (newest first — [0] IS the app version) ================= */
 const VERSIONLOG = [
+  { v:'1.1', d:'2026-09-13 21:00', title:'Voice-led pre-routines',
+    what:'Before a PB attempt, pick a 30, 40, 45, 50 or 60-minute routine: stretching, meditation, breathing with two warm-up holds, and a final breathe-up that leads straight into the PB hold. Each part has its own colour, the clock shows the time left in the part, and soft tones set the breathing pace.',
+    why:'A calm, complete warm-up — so you arrive at the PB relaxed instead of starting cold.' },
   { v:'1.0', d:'2026-09-13 20:00', title:'First version',
     what:'CO₂ table, O₂ table and personal-best attempt. Tap for contractions, press and hold to stop. Voice and beeps for every change, big colour screens, history with a PB chart, backups.',
     why:'Replaces the STAmina subscription with your own app that works offline.' }
@@ -283,7 +301,7 @@ const REST_MIN = 10;                         // rest after a PB attempt
 function defaults(){
   return { pb:0, sessions:[], lastPbAttempt:0, backupAt:0,
     set:{ voice:true, callouts:true, media:true, breatheUp:120,
-          co2Rounds:8, co2Pct:50, o2Rounds:8, o2Pct:80 } };
+          co2Rounds:8, co2Pct:50, o2Rounds:8, o2Pct:80, routine:0, pace:true } };
 }
 let S = load();
 function load(){
@@ -367,12 +385,21 @@ function renderPrep(){
   const k = prepKind;
   $('prepTitle').textContent = { co2:'CO₂', o2:'O₂', pb:'PB attempt' }[k];
   $('prepGo').className = 'go ' + k;
-  $('prepSteps').innerHTML = STEPS[k].map((s,i) => `
+  const steps = (k === 'pb' && S.set.routine) ? [] : STEPS[k];
+  const chips = k === 'pb' ? `<div class="chips">${[0, ...ROUTINE_MIN].map(m => `<button data-routine="${m}" class="${S.set.routine === m ? 'on' : ''}">${m || '—'}</button>`).join('')}</div>` : '';
+  $('prepSteps').innerHTML = chips + steps.map((s,i) => `
     <div class="step"><div class="lab">${s.lab}${s.sub ? `<small>${s.sub(S.set[s.key])}</small>` : ''}</div>
       <div class="ctl"><button class="pm" data-st="${i}" data-d="-1">−</button><b class="num">${s.show(S.set[s.key])}</b><button class="pm" data-st="${i}" data-d="1">+</button></div></div>`).join('');
   if(k === 'pb'){
-    $('prepTable').innerHTML = `<tr><td></td><td><span class="dot b"></span>${fmt(S.set.breatheUp)}</td><td><span class="dot h"></span>${fmt(S.pb)}+</td></tr>`;
-    $('prepTotal').textContent = '';
+    if(S.set.routine){
+      const split = ROUTINE_SPLIT[S.set.routine];
+      $('prepTable').innerHTML = PHASES.map((ph,i) => `<tr><td></td><td style="text-align:left"><span class="dot ${ph.id === 'breathe' ? 'b' : ph.id}"></span>${ph.name}</td><td>${split[i]} min</td></tr>`).join('')
+        + `<tr><td></td><td style="text-align:left"><span class="dot h"></span>PB</td><td>${fmt(S.pb)}+</td></tr>`;
+      $('prepTotal').textContent = S.set.routine + ' min, then your PB hold';
+    }else{
+      $('prepTable').innerHTML = `<tr><td></td><td><span class="dot b"></span>${fmt(S.set.breatheUp)}</td><td><span class="dot h"></span>${fmt(S.pb)}+</td></tr>`;
+      $('prepTotal').textContent = '';
+    }
   }else{
     const rows = buildTable(k);
     $('prepTable').innerHTML = rows.map((r,i) => `<tr><td>${i+1}</td><td><span class="dot b"></span>${fmt(r.breathe)}</td><td><span class="dot h"></span>${fmt(r.hold)}</td></tr>`).join('');
@@ -380,6 +407,8 @@ function renderPrep(){
   }
 }
 $('prepSteps').addEventListener('click', e => {
+  const c = e.target.closest('[data-routine]');
+  if(c){ S.set.routine = +c.dataset.routine; save(); renderPrep(); return; }
   const b = e.target.closest('[data-st]'); if(!b) return;
   const s = STEPS[prepKind][+b.dataset.st];
   S.set[s.key] = Math.min(s.max, Math.max(s.min, S.set[s.key] + s.step * +b.dataset.d));
@@ -414,6 +443,18 @@ const holdCue  = () => { bell(523.25, 0, .5, .38); bell(392, .22, .7, .38); };  
 const breatheCue = () => { bell(523.25, 0, .45, .38); bell(783.99, .2, .7, .38); };   // rising: open up
 const tick     = () => tone(330, 0, .09, .22, 'triangle');                             // a contraction tap
 const recordCue = () => { bell(880,0,.36,.3); bell(1174.7,.1,.36,.3); bell(1396.9,.2,.46,.34); bell(1760,.32,.7,.3); };
+const phaseCue  = () => { bell(659.25, 0, 1.2, .22); bell(987.77, .35, 1.4, .18); };
+/* breathing pace: a soft swell, higher = in, lower = out. Deliberately quiet. */
+function swell(freq, dur, gain){
+  if(!audio || !S.set.pace) return;
+  const t0 = audio.currentTime, o = audio.createOscillator(), g = audio.createGain();
+  o.type = 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(gain, t0 + dur*.35);
+  g.gain.linearRampToValueAtTime(0, t0 + dur);
+  o.connect(g).connect(master); o.start(t0); o.stop(t0 + dur + .05);
+}
+const paceIn  = s => swell(440, Math.min(2.2, s*.6), .16);
+const paceOut = s => swell(293.66, Math.min(3, s*.5), .14);
 const finishCue = () => { bell(659.25,0,.45,.34); bell(880,.13,.45,.34); bell(1046.5,.26,.8,.36); };
 
 let voice = null;
@@ -467,6 +508,101 @@ document.addEventListener('visibilitychange', () => {
   if(document.visibilityState === 'visible' && run) keepAwake();
 });
 
+/* ================= voice-led pre-routines ================= */
+/* Four parts, then the PB hold. Minutes per part for each length. Every routine
+   is built from the same material; a longer one simply gives each move, each
+   body-scan line and the slow breathing more time. */
+const ROUTINE_MIN = [30, 40, 45, 50, 60];
+const ROUTINE_SPLIT = { 30:[8,6,10,6], 40:[10,8,14,8], 45:[12,9,15,9], 50:[13,10,17,10], 60:[15,13,21,11] };
+const PHASES = [
+  { id:'stretch', name:'Stretching', word:'STRETCH' },
+  { id:'relax',   name:'Meditation', word:'RELAX' },
+  { id:'breathe', name:'Breathing',  word:'BREATHE' },
+  { id:'final',   name:'Final prep', word:'READY' }
+];
+const MOVES = [
+  { w:2,   say:'Sit comfortably. Slowly tilt your head to the right, ear towards the shoulder. Breathe out and let it sink.', half:'Now the left side.' },
+  { w:1.5, say:'Roll your shoulders slowly backwards. Big, slow circles.', half:'Now forwards.' },
+  { w:2,   say:'Sit tall. Reach your right arm over your head and lean to the left. Feel the ribs open.', half:'Other side. Left arm up, lean to the right.' },
+  { w:1,   say:'Clasp your hands behind your back. Lift the chest and open the shoulders. Breathe into the chest.' },
+  { w:2,   say:'Still sitting, twist gently to the right, hand on the floor behind you. Breathe into the side of the ribs.', half:'Twist to the left.' },
+  { w:1.5, say:'Come onto hands and knees. Cat and cow. Breathe in, belly down, look up. Breathe out, round the back.' },
+  { w:1.5, say:'Child\'s pose. Sit back on your heels, arms forward, forehead down. Breathe into your back.' },
+  { w:1,   say:'Lie on your back. Arms out to the sides, palms up. Let the chest open.' },
+  { w:2,   say:'Knees bent. Let both knees fall to the right, arms stay out. A gentle twist.', half:'Knees to the left.' },
+  { w:1,   say:'Hug both knees to your chest and rock gently from side to side.' },
+  { w:1.5, say:'Hands on your belly. Breathe in and let the belly rise. Breathe out and let it fall.' }
+];
+const SCAN = [
+  'Feel your feet. Let them be heavy.',
+  'Your legs. Let them sink into the floor.',
+  'Your hips and lower back. Soften.',
+  'Your belly. Let it rise and fall on its own.',
+  'Your chest. Nothing to do.',
+  'Your hands and arms. Heavy and warm.',
+  'Your shoulders. Let them drop away from your ears.',
+  'Your jaw. Let the teeth part a little.',
+  'Your face and forehead. Smooth and still.'
+];
+function spread(total, weights){
+  const sum = weights.reduce((a,b) => a+b, 0);
+  const out = weights.map(w => Math.max(20, Math.round(total * w / sum / 5) * 5));
+  out[out.length-1] = Math.max(20, total - out.slice(0,-1).reduce((a,b) => a+b, 0));
+  return out;
+}
+function buildRoutine(min){
+  const [mS, mM, mB, mF] = ROUTINE_SPLIT[min].map(m => m * 60), steps = [];
+  const G = (pi, dur, lines, pace, extra) => steps.push(Object.assign({ k:'guide', pi, dur, pace:pace || null,
+    lines: lines.map(l => ({ at: l.at < 0 ? dur + l.at : l.at, text:l.text })).sort((a,b) => a.at - b.at) }, extra || {}));
+
+  // 1 · stretching
+  spread(mS, MOVES.map(m => m.w)).forEach((dur, i) => {
+    const m = MOVES[i], lines = [{ at:0, text:(i === 0 ? 'Stretching. Move slowly, and never into pain. ' : '') + m.say }];
+    if(m.half) lines.push({ at:Math.round(dur/2), text:m.half });
+    G(0, dur, lines);
+  });
+
+  // 2 · meditation
+  const med = [{ at:0, text:'Meditation. Lie on your back, arms by your sides, and close your eyes.' },
+               { at:Math.round(mM*.05) + 12, text:'Let your breathing be natural. Don\'t control it.' }];
+  SCAN.forEach((t, i) => med.push({ at:Math.round(mM * (.12 + .5 * i / (SCAN.length - 1))), text:t }));
+  med.push({ at:Math.round(mM*.7),  text:'Feel the whole body, resting. Heavy and calm.' });
+  med.push({ at:Math.round(mM*.82), text:'If a thought comes, notice it, and let it pass.' });
+  med.push({ at:-20, text:'Gently come back. Keep your eyes closed.' });
+  G(1, mM, med);
+
+  // 3 · breathing, with two easy warm-up holds
+  const h1 = Math.max(30, r5(S.pb * .4)), h2 = Math.max(30, r5(S.pb * .6)), REC = 120;
+  let rem = mB - h1 - REC - h2;
+  const two = rem >= 240;
+  if(!two) rem = mB - h1;
+  const a = Math.round(rem * (two ? .55 : .6) / 5) * 5, c = rem - a;
+  G(2, a, [{ at:0, text:'Breathing. Stay lying down. Breathe in through the nose for four, and out slowly for six. Follow the soft tones.' },
+           { at:Math.round(a/2), text:'Low and slow. Let the belly move, not the shoulders.' },
+           { at:-12, text:'Get ready for a warm-up hold. Easy. Not a max.' }], [4,6], { beforeHold:true, paceFrom:12, paceUntil:-12 });
+  steps.push({ k:'hold', dur:h1, pi:2, warm:true });
+  if(two){
+    G(2, REC, [{ at:1, text:'Breathe. A few easy recovery breaths, then slow breathing again.' },
+               { at:-12, text:'Get ready for the second warm-up hold.' }], [4,6], { beforeHold:true, paceFrom:15, paceUntil:-12 });
+    steps.push({ k:'hold', dur:h2, pi:2, warm:true });
+  }
+  G(2, c, [{ at:1, text:'Breathe. Well done. Now longer exhales. In for four, out for eight.' },
+           { at:Math.round(c/2), text:'Nothing to do but breathe slowly.' }], [4,8], { paceFrom:15 });
+
+  // 4 · final prep, then the PB hold
+  const f1 = Math.max(60, Math.round(mF * .3 / 5) * 5), f2 = mF - f1;
+  G(3, f1, [{ at:0, text:'Final preparation. Lie still. Picture the hold ahead. Calm, heavy, patient.' },
+            { at:Math.round(f1*.45), text:'When contractions come, they are normal. Welcome them, and stay relaxed.' },
+            { at:-15, text:'Let go of any goal. Just relax into it.' }]);
+  G(3, f2, [{ at:1, text:'Breathe-up. In for four, out for eight. Small, easy breaths. Never big ones.' },
+            { at:Math.round(f2*.45), text:'Keep the face soft, and the shoulders heavy.' },
+            { at:-60, text:'One minute.' }, { at:-30, text:'Thirty seconds. Stay calm.' },
+            { at:-13, text:'Last slow exhale.' }, { at:-6, text:'Now breathe in. Full, and relaxed.' }],
+    [4,8], { beforeHold:true, voiceLed:true, paceFrom:8, paceUntil:-16 });
+  steps.push({ k:'hold', dur:null, pi:4 });
+  return steps;
+}
+
 /* ================= the session engine ================= */
 /* A session is a list of steps: breathe (fixed length) or hold (fixed length, or
    open-ended for a PB attempt). Time always comes from the clock, never from
@@ -476,13 +612,22 @@ let run = null;
 function startSession(kind){
   ensureAudio(); claimMedia(); keepAwake();
   const steps = [];
-  if(kind === 'pb'){
+  const routine = kind === 'pb' ? S.set.routine : 0;
+  if(routine){
+    steps.push(...buildRoutine(routine));
+    let rest = 0;                                   // time left in the part AFTER each step
+    for(let i = steps.length - 1; i >= 0; i--){
+      const nx = steps[i+1];
+      rest = (nx && nx.pi === steps[i].pi && nx.dur) ? rest + nx.dur : 0;
+      steps[i].phaseRest = rest;
+    }
+  }else if(kind === 'pb'){
     steps.push({ k:'breathe', dur:S.set.breatheUp, round:0 });
     steps.push({ k:'hold', dur:null, round:0 });
   }else{
     buildTable(kind).forEach((r,i) => { steps.push({ k:'breathe', dur:r.breathe, round:i }); steps.push({ k:'hold', dur:r.hold, round:i }); });
   }
-  run = { kind, steps, i:-1, t0:0, lastLeft:null, marks:[], holds:[], recordHit:false, pbBefore:S.pb,
+  run = { kind, routine, steps, i:-1, t0:0, lastLeft:null, marks:[], holds:[], recordHit:false, pbBefore:S.pb,
           nRounds: kind === 'pb' ? 0 : steps.length/2, started:Date.now() };
   show('run');
   nextStep();
@@ -495,8 +640,13 @@ function nextStep(){
   r.i++;
   if(r.i >= r.steps.length){ finish(true); return; }
   const st = r.steps[r.i];
-  r.t0 = performance.now(); r.lastLeft = null; r.marks = []; r.lastCall = 0;
-  if(st.k === 'breathe'){ breatheCue(); setTimeout(() => say(r.kind === 'pb' ? 'Breathe up. Slow and calm.' : 'Breathe'), 450); }
+  r.t0 = performance.now(); r.lastLeft = null; r.marks = []; r.lastCall = 0; r.li = 0; r.pk = -1;
+  const prev = r.steps[r.i - 1];
+  if(st.k === 'guide'){
+    if(prev && prev.k === 'hold') breatheCue();
+    else if(!prev || prev.pi !== st.pi) phaseCue();
+  }
+  else if(st.k === 'breathe'){ breatheCue(); setTimeout(() => say(r.kind === 'pb' ? 'Breathe up. Slow and calm.' : 'Breathe'), 450); }
   else { holdCue(); setTimeout(() => say('Hold'), 450); }
   renderRun();
 }
@@ -506,6 +656,15 @@ function tickRun(){
   if(!run) return;
   const r = run, st = r.steps[r.i];
   const el = (performance.now() - r.t0) / 1000;
+  if(st.k === 'guide'){
+    while(r.li < st.lines.length && el >= st.lines[r.li].at){ say(st.lines[r.li].text); r.li++; }
+    const until = st.paceUntil == null ? st.dur : (st.paceUntil < 0 ? st.dur + st.paceUntil : st.paceUntil);
+    if(st.pace && el >= (st.paceFrom || 0) && el < until){
+      const [pin, pout] = st.pace, cyc = pin + pout, t = el - (st.paceFrom || 0);
+      const key = Math.floor(t / cyc) * 2 + (t % cyc >= pin ? 1 : 0);
+      if(key !== r.pk){ r.pk = key; key % 2 ? paceOut(pout) : paceIn(pin); }
+    }
+  }
   if(st.dur !== null){
     const left = Math.ceil(st.dur - el);
     if(left !== r.lastLeft){
@@ -528,6 +687,10 @@ setInterval(() => { if(run && document.visibilityState === 'hidden') tickRun(); 
 
 function cueFor(st, left){
   if(left <= 0) return;
+  if(st.k === 'guide'){
+    if(st.beforeHold && !st.voiceLed && left <= 3) beep();   // warm-up holds only; the PB is led by voice
+    return;
+  }
   if(st.k === 'breathe'){
     if(left === 60 && st.dur >= 90) say('One minute');
     else if(left === 30 && st.dur >= 45) say('30 seconds');
@@ -542,8 +705,10 @@ function cueFor(st, left){
 
 function renderRun(){
   const r = run, st = r.steps[r.i];
-  $('word').textContent = st.k === 'breathe' ? 'BREATHE' : 'HOLD';
-  $('rounds').innerHTML = r.kind === 'pb' ? '' :
+  $('word').textContent = st.k === 'guide' ? PHASES[st.pi].word : st.k === 'breathe' ? 'BREATHE' : 'HOLD';
+  if(r.routine){
+    $('rounds').innerHTML = [0,1,2,3,4].map(i => `<i class="${i < st.pi ? 'done' : ''}${i === st.pi ? ' now' : ''}"></i>`).join('');
+  }else $('rounds').innerHTML = r.kind === 'pb' ? '' :
     Array.from({length:r.nRounds}, (_,i) => `<i class="${i < st.round ? 'done' : ''}${i === st.round ? ' now' : ''}"></i>`).join('');
   $('marks').innerHTML = r.marks.map(() => '<i></i>').join('');
 }
@@ -552,13 +717,15 @@ function paintClock(el){
   let cls;
   if(st.dur !== null){
     const left = Math.max(0, st.dur - el);
-    $('clock').textContent = fmt(Math.ceil(left));
-    cls = st.k === 'hold' ? 'hold' : (left <= 10 ? 'ready' : 'breathe');
+    $('clock').textContent = fmt(Math.ceil(left) + (st.phaseRest || 0));
+    if(st.k === 'guide') cls = (st.beforeHold && left <= 10) ? 'ready' : PHASES[st.pi].id;
+    else cls = st.k === 'hold' ? 'hold' : (left <= 10 ? 'ready' : 'breathe');
   }else{
     $('clock').textContent = fmt(Math.floor(el));
     cls = r.recordHit ? 'record' : 'hold';
   }
-  if(run$.className.indexOf(cls) === -1) run$.className = 'screen on ' + cls;
+  $('clock').classList.toggle('long', $('clock').textContent.length > 4);
+  if(run$.className !== 'screen on ' + cls) run$.className = 'screen on ' + cls;
 }
 
 /* ---- touch: tap = contraction, press and hold 1 s = stop ---- */
@@ -592,7 +759,7 @@ function contraction(){
 }
 function stopPressed(){
   const r = run, st = r.steps[r.i];
-  if(r.kind === 'pb' && st.k === 'hold'){
+  if(r.kind === 'pb' && st.k === 'hold' && st.dur === null){
     r.holds.push({ planned:null, secs:Math.floor((performance.now() - r.t0)/1000), marks:r.marks, done:true });
     finish(true, true);
   }else{
@@ -607,11 +774,12 @@ function finish(complete, pbEnded){
   setTimeout(releaseMedia, 4000);
   let rec = null;
   if(r.kind === 'pb'){
-    if(!r.holds.length){ say('Stopped'); goHome(); return; }       // stopped during breathe-up: nothing to keep
-    const h = r.holds[0], isRecord = h.secs > r.pbBefore;
+    const h = r.holds.find(x => x.planned === null);
+    if(!h){ say('Stopped'); goHome(); return; }       // stopped before the PB hold: nothing to keep
+    const isRecord = h.secs > r.pbBefore;
     S.lastPbAttempt = Date.now();
     if(isRecord) S.pb = h.secs;
-    rec = { t:r.started, type:'pb', hold:h.secs, marks:h.marks, record:isRecord, pbBefore:r.pbBefore, complete:true };
+    rec = { t:r.started, type:'pb', hold:h.secs, marks:h.marks, record:isRecord, pbBefore:r.pbBefore, complete:true, routine:r.routine || 0 };
     if(isRecord){ recordCue(); setTimeout(() => say('Breathe. New personal best.'), 900); }
     else { breatheCue(); setTimeout(() => say('Breathe'), 450); }
   }else{
@@ -663,7 +831,7 @@ function renderHistory(){
     let big, sub;
     if(s.type === 'pb'){
       big = fmt(s.hold) + (s.record ? ' ★' : '');
-      sub = when + (s.marks.length ? ' · ' + s.marks.length + ' contractions, first ' + fmt(s.marks[0]) : '');
+      sub = when + (s.routine ? ' · after ' + s.routine + '-min routine' : '') + (s.marks.length ? ' · ' + s.marks.length + ' contractions, first ' + fmt(s.marks[0]) : '');
     }else{
       const ok = s.holds.filter(h => h.done).length, m = s.holds.reduce((a,h) => a + h.marks.length, 0);
       big = ok + '/' + s.rounds;
@@ -699,10 +867,11 @@ function syncSw(){
   $('swVoice').setAttribute('aria-checked', S.set.voice);
   $('swCall').setAttribute('aria-checked', S.set.callouts);
   $('swMedia').setAttribute('aria-checked', S.set.media);
+  $('swPace').setAttribute('aria-checked', S.set.pace);
   $('setPB').textContent = fmt(S.pb);
   $('backupWhen').textContent = S.backupAt ? 'Last backup: ' + new Date(S.backupAt).toLocaleDateString('sv-SE') : 'No backup saved yet.';
 }
-[['swVoice','voice'],['swCall','callouts'],['swMedia','media']].forEach(([id,k]) =>
+[['swVoice','voice'],['swCall','callouts'],['swMedia','media'],['swPace','pace']].forEach(([id,k]) =>
   $(id).addEventListener('click', () => { S.set[k] = !S.set[k]; save(); syncSw(); }));
 document.querySelectorAll('[data-pbadj]').forEach(b => b.addEventListener('click', () => {
   S.pb = Math.max(15, Math.min(1200, S.pb + +b.dataset.pbadj)); save(); syncSw();
