@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>AMS Apnea</title>
+<meta name="theme-color" content="#0d1b2a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Apnea">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<style>
+  :root{
+    --night:#0d1b2a; --card:#16283b; --line:#2a3f55; --ink:#eef3f8; --mute:#9fb2c4;
+    --breathe:#12594e; --ready:#8a5a12; --hold:#13315c; --gold:#7a5c00;
+    --co2:#1d7a6b; --o2:#2f5fa0; --pb:#a37a12; --danger:#9c3b3b;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  [hidden]{display:none !important}
+  html{background-color:var(--night); height:100%}
+  body{margin:0; min-height:100%; color:var(--ink); background:var(--night);
+    font:17px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Helvetica Neue", sans-serif;
+    -webkit-user-select:none; user-select:none; overscroll-behavior:none}
+  button{font:inherit; color:inherit; border:0; background:none; cursor:pointer}
+  .screen{display:none; min-height:100vh; min-height:100dvh;
+    padding:calc(env(safe-area-inset-top) + 18px) 20px calc(env(safe-area-inset-bottom) + 20px)}
+  .screen.on{display:flex; flex-direction:column}
+  .ico{width:30px; height:30px; fill:none; stroke:currentColor; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round}
+  .num{font-variant-numeric:tabular-nums}
+
+  /* ---------- home ---------- */
+  #home .pbline{text-align:center; margin:18px 0 26px}
+  #home .pbline small{display:block; color:var(--mute); font-size:15px; letter-spacing:.14em; font-weight:700}
+  #home .pbline b{display:block; font-size:min(24vw,120px); line-height:1; font-weight:800}
+  .big{display:flex; align-items:center; justify-content:space-between; width:100%;
+    border-radius:26px; padding:0 26px; height:min(19vh,132px); margin-bottom:16px; text-align:left}
+  .big .t{font-size:clamp(40px,12vw,58px); font-weight:800; line-height:1}
+  .big .s{font-size:22px; font-weight:700; opacity:.85}
+  .big.co2{background:var(--co2)} .big.o2{background:var(--o2)} .big.pb{background:var(--pb)}
+  .big.rest{opacity:.55}
+  .bottombar{margin-top:auto; display:flex; justify-content:space-between; padding-top:10px}
+  .round{width:62px; height:62px; border-radius:50%; background:var(--card); display:grid; place-items:center}
+
+  /* ---------- sheets (prep / settings / history) ---------- */
+  .top{display:flex; align-items:center; gap:12px; margin-bottom:14px}
+  .top h1{margin:0; font-size:34px; font-weight:800}
+  .panel{background:var(--card); border-radius:20px; padding:16px 18px; margin-bottom:14px}
+  .panel h2{margin:0 0 10px; font-size:14px; letter-spacing:.12em; color:var(--mute); font-weight:700; text-transform:uppercase}
+  .step{display:flex; align-items:center; justify-content:space-between; padding:6px 0}
+  .step .lab{font-size:20px; font-weight:700}
+  .step .lab small{display:block; font-size:14px; color:var(--mute); font-weight:600}
+  .step .ctl{display:flex; align-items:center; gap:10px}
+  .step .ctl b{min-width:78px; text-align:center; font-size:30px; font-weight:800}
+  .pm{width:52px; height:52px; border-radius:50%; background:var(--line); font-size:30px; font-weight:700; line-height:1}
+  table.tbl{width:100%; border-collapse:collapse; font-size:24px; font-weight:700}
+  table.tbl td{padding:5px 0; text-align:center}
+  table.tbl td:first-child{color:var(--mute); text-align:left; width:2.2em}
+  .dot{display:inline-block; width:14px; height:14px; border-radius:50%; margin-right:8px; vertical-align:middle}
+  .dot.b{background:#3fb39e} .dot.h{background:#6f9ee0}
+  .go{margin-top:auto; width:100%; height:92px; border-radius:26px; font-size:46px; font-weight:800}
+  .go.co2{background:var(--co2)} .go.o2{background:var(--o2)} .go.pb{background:var(--pb)}
+  .total{text-align:center; color:var(--mute); font-size:17px; margin:4px 0 12px}
+
+  /* ---------- the session ---------- */
+  #run{padding:0; transition:background-color .6s; touch-action:none; position:relative; overflow:hidden}
+  #run.breathe{background:var(--breathe)} #run.ready{background:var(--ready)}
+  #run.hold{background:var(--hold)} #run.record{background:var(--gold)}
+  #run .inner{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:calc(env(safe-area-inset-top) + 24px) 16px calc(env(safe-area-inset-bottom) + 24px)}
+  #rounds{display:flex; flex-wrap:wrap; gap:12px; justify-content:center; min-height:26px}
+  #rounds i{width:18px; height:18px; border-radius:50%; border:3px solid rgba(255,255,255,.55)}
+  #rounds i.done{background:#fff; border-color:#fff}
+  #rounds i.now{width:26px; height:26px; margin-top:-4px; border-color:#fff}
+  #word{margin-top:auto; font-size:min(13vw,64px); font-weight:800; letter-spacing:.06em}
+  #clock{font-size:min(36vw,30vh); font-weight:800; line-height:1; text-shadow:0 2px 3px rgba(0,0,0,.35)}
+  #marks{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; min-height:22px; max-width:90%; margin-top:14px}
+  #marks i{width:20px; height:20px; border-radius:50%; background:rgba(255,255,255,.85)}
+  #stopwrap{margin-top:auto; position:relative; width:96px; height:96px; display:grid; place-items:center}
+  #stopwrap svg{position:absolute; inset:0; transform:rotate(-90deg)}
+  #stopwrap circle{fill:none; stroke-width:7}
+  #stopring{stroke:#fff; stroke-dasharray:283; stroke-dashoffset:283}
+  #stopwrap .sq{width:34px; height:34px; border-radius:7px; background:rgba(255,255,255,.8)}
+  #ripple{position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; transition:opacity .35s}
+
+  /* ---------- summary ---------- */
+  #done{align-items:center; text-align:center}
+  #done.record{background:var(--gold)} #done.good{background:var(--breathe)}
+  #doneTag{margin-top:6vh; font-size:30px; font-weight:800; letter-spacing:.1em}
+  #doneBig{font-size:min(30vw,150px); font-weight:800; line-height:1.05}
+  #doneSub{font-size:24px; font-weight:700; margin-top:8px}
+  #bars{display:flex; align-items:flex-end; gap:8px; height:140px; margin:28px auto 0; width:100%; max-width:420px; justify-content:center}
+  #bars .bar{flex:1; max-width:34px; background:rgba(255,255,255,.35); border-radius:6px 6px 2px 2px; position:relative}
+  #bars .bar.ok{background:rgba(255,255,255,.85)}
+  #bars .bar b{position:absolute; left:15%; right:15%; height:3px; background:#0d1b2a; border-radius:2px}
+  #doneOk{margin-top:auto; width:100%; height:92px; border-radius:26px; background:rgba(0,0,0,.28); font-size:48px; font-weight:800}
+
+  /* ---------- history ---------- */
+  .hrow{display:flex; align-items:center; gap:14px; padding:12px 0; border-top:1px solid var(--line)}
+  .hrow:first-child{border-top:0}
+  .chip{min-width:58px; text-align:center; padding:6px 8px; border-radius:12px; font-weight:800; font-size:17px}
+  .chip.co2{background:var(--co2)} .chip.o2{background:var(--o2)} .chip.pb{background:var(--pb)}
+  .hrow .mid{flex:1}
+  .hrow .mid b{font-size:26px; font-weight:800}
+  .hrow .mid small{display:block; color:var(--mute); font-size:15px}
+  .hrow .del{color:#e39b9b; font-size:15px; padding:8px}
+  #chart{width:100%; height:150px; display:block}
+  .empty{color:var(--mute); text-align:center; padding:20px 0}
+
+  /* ---------- settings ---------- */
+  .row{display:flex; align-items:center; justify-content:space-between; gap:14px; padding:10px 0; border-top:1px solid var(--line); font-size:18px}
+  .row:first-of-type{border-top:0}
+  .sw{width:58px; height:34px; border-radius:20px; background:var(--line); position:relative; flex:none}
+  .sw::after{content:""; position:absolute; top:3px; left:3px; width:28px; height:28px; border-radius:50%; background:#fff; transition:left .2s}
+  .sw[aria-checked="true"]{background:#2f9e7f} .sw[aria-checked="true"]::after{left:27px}
+  .btn{display:block; width:100%; padding:14px; border-radius:14px; background:var(--line); font-weight:700; margin-top:10px; font-size:18px}
+  details{border-top:1px solid var(--line); padding:10px 0}
+  details:first-of-type{border-top:0}
+  summary{font-weight:700; font-size:18px; cursor:pointer}
+  details p, details li{color:#cfdbe6; font-size:16px; -webkit-user-select:text; user-select:text}
+  .vlog b{font-size:16px} .vlog small{color:var(--mute)} .vlog .why{color:#8fd9c2}
+  .note{color:var(--mute); font-size:15px}
+  #toast{position:fixed; left:16px; right:16px; bottom:calc(env(safe-area-inset-bottom) + 18px); background:#243a52; border-radius:16px;
+    padding:14px 16px; display:flex; gap:12px; align-items:center; justify-content:space-between; font-weight:600; z-index:50}
+  #toast button{background:#fff; color:#0d1b2a; border-radius:10px; padding:8px 14px; font-weight:800}
+
+  /* ---------- first run ---------- */
+  #setup{justify-content:center; text-align:center}
+  #setup h1{font-size:38px; margin:0 0 8px}
+  #setup .safe{background:#3a2a12; border-radius:18px; padding:14px; font-size:18px; font-weight:600; margin:20px 0}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <!-- hand-drawn, single-stroke, slightly off-true -->
+  <symbol id="i-gear" viewBox="0 0 32 32"><path d="M5 9.2c7-.4 14.3.3 22-.2"/><path d="M4.6 16.3c7.4.2 15-.4 22.6.1"/><path d="M5.2 23.1c6.8-.3 14.1.2 21.5-.2"/><circle cx="11.4" cy="9.1" r="2.6"/><circle cx="20.6" cy="16.2" r="2.6"/><circle cx="14" cy="23" r="2.6"/></symbol>
+  <symbol id="i-hist" viewBox="0 0 32 32"><path d="M5 26.4c1.8-4.6 4.3-5.1 6.6-9.2 2.1 2.8 3.9 3.4 6.1 1.1 2.6-4.3 5.3-8.9 8.9-12.1"/><path d="M4.8 5.2c-.3 7.4.2 14.8-.1 22 7.3.3 15 .1 22.4.3"/></symbol>
+  <symbol id="i-back" viewBox="0 0 32 32"><path d="M26.5 16.3c-7-.3-13.8.2-20.6-.1"/><path d="M13.4 8.2c-2.6 2.9-5 5.2-7.7 8 2.6 2.4 5.2 5.1 7.9 7.9"/></symbol>
+</svg>
+
+<!-- ============ first run ============ -->
+<section class="screen" id="setup">
+  <h1>AMS Apnea</h1>
+  <div class="note" style="font-size:19px">Your personal best today?</div>
+  <div class="step" style="justify-content:center; gap:18px; margin-top:22px">
+    <button class="pm" data-setup="-5">−</button>
+    <b id="setupPB" class="num" style="font-size:64px; font-weight:800; min-width:170px">2:00</b>
+    <button class="pm" data-setup="5">+</button>
+  </div>
+  <div class="safe">On land only. Lying down.<br>Never in water.</div>
+  <button class="go co2" id="setupGo" style="margin-top:10px">✓</button>
+</section>
+
+<!-- ============ home ============ -->
+<section class="screen" id="home">
+  <div class="pbline"><small>PERSONAL BEST</small><b id="homePB" class="num">2:00</b></div>
+  <button class="big co2" data-prep="co2"><span class="t">CO₂</span><span class="s num" id="hCo2"></span></button>
+  <button class="big o2" data-prep="o2"><span class="t">O₂</span><span class="s num" id="hO2"></span></button>
+  <button class="big pb" data-prep="pb" id="hPbBtn"><span class="t">PB</span><span class="s num" id="hPb"></span></button>
+  <div class="bottombar">
+    <button class="round" id="toHistory" aria-label="History"><svg class="ico"><use href="#i-hist"/></svg></button>
+    <button class="round" id="toSettings" aria-label="Settings"><svg class="ico"><use href="#i-gear"/></svg></button>
+  </div>
+</section>
+
+<!-- ============ prep: see the table, adjust, start ============ -->
+<section class="screen" id="prep">
+  <div class="top">
+    <button class="round" data-home aria-label="Back"><svg class="ico"><use href="#i-back"/></svg></button>
+    <h1 id="prepTitle">CO₂</h1>
+  </div>
+  <div class="panel" id="prepSteps"></div>
+  <div class="panel" id="prepTablePanel"><table class="tbl num" id="prepTable"></table></div>
+  <div class="total num" id="prepTotal"></div>
+  <button class="go" id="prepGo">▶</button>
+</section>
+
+<!-- ============ the session ============ -->
+<section class="screen" id="run">
+  <div class="inner">
+    <div id="rounds"></div>
+    <div id="word">BREATHE</div>
+    <div id="clock" class="num">2:00</div>
+    <div id="marks"></div>
+    <div id="stopwrap">
+      <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" stroke="rgba(255,255,255,.25)"/><circle id="stopring" cx="50" cy="50" r="45"/></svg>
+      <div class="sq"></div>
+    </div>
+  </div>
+  <div id="ripple"></div>
+</section>
+
+<!-- ============ summary ============ -->
+<section class="screen" id="done">
+  <div id="doneTag"></div>
+  <div id="doneBig" class="num"></div>
+  <div id="doneSub" class="num"></div>
+  <div id="bars"></div>
+  <button id="doneOk">✓</button>
+</section>
+
+<!-- ============ history ============ -->
+<section class="screen" id="history">
+  <div class="top">
+    <button class="round" data-home aria-label="Back"><svg class="ico"><use href="#i-back"/></svg></button>
+    <h1>History</h1>
+  </div>
+  <div class="panel"><h2>Personal best over time</h2><svg id="chart"></svg></div>
+  <div class="panel" id="histList"></div>
+</section>
+
+<!-- ============ settings ============ -->
+<section class="screen" id="settings">
+  <div class="top">
+    <button class="round" data-home aria-label="Back"><svg class="ico"><use href="#i-back"/></svg></button>
+    <h1>Settings</h1>
+  </div>
+
+  <div class="panel">
+    <h2>Personal best</h2>
+    <div class="step">
+      <div class="lab">My PB<small>Tables are built from it</small></div>
+      <div class="ctl"><button class="pm" data-pbadj="-5">−</button><b id="setPB" class="num">2:00</b><button class="pm" data-pbadj="5">+</button></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Sound</h2>
+    <div class="row">Voice<button class="sw" id="swVoice" role="switch"></button></div>
+    <div class="row">Say the time every 30 s during a PB hold<button class="sw" id="swCall" role="switch"></button></div>
+    <div class="row">Play sound with the silent switch on<button class="sw" id="swMedia" role="switch"></button></div>
+    <button class="btn" id="testSound">🔊 Test the sound</button>
+  </div>
+
+  <div class="panel">
+    <h2>Help</h2>
+    <details><summary>Safety</summary>
+      <p><b>Dry training only — on land, lying down.</b> Never train breath holds in or near water, in a bath, or while standing or driving. A blackout comes without warning.</p>
+      <p>Only one maximum attempt per session. The PB button rests for 10 minutes after one.</p>
+      <p>Don't hyperventilate before a hold: calm, slow breaths.</p>
+    </details>
+    <details><summary>How this works</summary>
+      <p><b>CO₂ table</b> — the hold stays the same (half your PB), the rest between holds gets 15 seconds shorter each round. Trains you to cope with the urge to breathe.</p>
+      <p><b>O₂ table</b> — the rest stays at 2 minutes, the hold gets longer each round, up to 80 % of your PB. Trains your body to manage with less oxygen.</p>
+      <p><b>PB attempt</b> — a calm breathe-up, then one hold for as long as you like. Beat your PB and the screen turns gold and your PB updates itself.</p>
+      <p><b>During a hold</b> — tap anywhere on the screen each time you feel a contraction. Each tap adds a white dot.</p>
+      <p><b>To stop</b> — press and hold anywhere for one second. In a PB attempt that ends the hold and saves it.</p>
+      <p><b>Colours</b> — green: breathe · amber: get ready (last 10 s) · blue: hold · gold: past your PB.</p>
+      <p><b>Sound</b> — the voice says "Breathe" and "Hold", counts down the last seconds with beeps, so you can keep your eyes closed. Keep the screen on — the app keeps it awake by itself.</p>
+      <p>Before a table you can change the number of rounds and the hold length with − and +. It remembers your choice.</p>
+    </details>
+    <details><summary>Your data</summary>
+      <p>Everything stays on this device. Save a backup now and then.</p>
+      <p class="note" id="backupWhen"></p>
+      <button class="btn" id="exportBtn">Save a backup file</button>
+      <button class="btn" id="copyBtn">Copy backup to clipboard</button>
+      <button class="btn" id="importBtn">Restore from a backup file</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </details>
+    <details><summary>Version history</summary><div id="vlog" class="vlog"></div></details>
+    <button class="btn" id="updateBtn">Check for app update</button>
+    <p class="note" style="text-align:center" id="verLine"></p>
+  </div>
+</section>
+
+<div id="toast" hidden><span id="toastMsg"></span><button id="toastBtn" hidden></button></div>
+
+<script>
+/* ================= version log (newest first — [0] IS the app version) ================= */
+const VERSIONLOG = [
+  { v:'1.0', d:'2026-09-13 20:00', title:'First version',
+    what:'CO₂ table, O₂ table and personal-best attempt. Tap for contractions, press and hold to stop. Voice and beeps for every change, big colour screens, history with a PB chart, backups.',
+    why:'Replaces the STAmina subscription with your own app that works offline.' }
+];
+
+const $ = id => document.getElementById(id);
+const KEY = 'amsap.v1';
+const REST_MIN = 10;                         // rest after a PB attempt
+
+/* ================= data ================= */
+function defaults(){
+  return { pb:0, sessions:[], lastPbAttempt:0, backupAt:0,
+    set:{ voice:true, callouts:true, media:true, breatheUp:120,
+          co2Rounds:8, co2Pct:50, o2Rounds:8, o2Pct:80 } };
+}
+let S = load();
+function load(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(KEY));
+    if(raw && typeof raw === 'object'){
+      const d = defaults();
+      return Object.assign(d, raw, { set:Object.assign(d.set, raw.set || {}), sessions:Array.isArray(raw.sessions) ? raw.sessions : [] });
+    }
+  }catch(e){}
+  return defaults();
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+
+/* ================= helpers ================= */
+const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
+const r5 = s => Math.max(15, Math.round(s/5)*5);
+function show(id){
+  document.querySelectorAll('.screen').forEach(el => el.classList.toggle('on', el.id === id));
+  window.scrollTo(0,0);
+}
+function toast(msg, btnLabel, fn, ms){
+  const t = $('toast'), b = $('toastBtn');
+  $('toastMsg').textContent = msg;
+  b.hidden = !btnLabel; b.textContent = btnLabel || '';
+  b.onclick = () => { t.hidden = true; fn && fn(); };
+  t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, ms || 3500);
+}
+
+/* ================= tables ================= */
+function buildTable(kind){
+  const pb = S.pb, st = S.set, rows = [];
+  if(kind === 'co2'){
+    const hold = r5(pb * st.co2Pct / 100);
+    for(let i = 0; i < st.co2Rounds; i++) rows.push({ breathe: Math.max(15, 120 - 15*i), hold });
+  }else if(kind === 'o2'){
+    const lo = 50, hi = Math.max(lo, st.o2Pct), n = st.o2Rounds;
+    for(let i = 0; i < n; i++){
+      const pct = n === 1 ? hi : lo + (hi - lo) * i / (n - 1);
+      rows.push({ breathe:120, hold: r5(pb * pct / 100) });
+    }
+  }
+  return rows;
+}
+const tableTime = rows => rows.reduce((a,r) => a + r.breathe + r.hold, 0);
+
+/* ================= home ================= */
+function restLeft(){ return Math.max(0, S.lastPbAttempt + REST_MIN*60000 - Date.now()); }
+function renderHome(){
+  $('homePB').textContent = fmt(S.pb);
+  $('hCo2').textContent = fmt(tableTime(buildTable('co2'))) ;
+  $('hO2').textContent = fmt(tableTime(buildTable('o2')));
+  const rest = restLeft();
+  $('hPbBtn').classList.toggle('rest', rest > 0);
+  $('hPb').textContent = rest > 0 ? '⏳ ' + Math.ceil(rest/60000) + ' min' : '';
+}
+document.querySelectorAll('[data-prep]').forEach(b => b.addEventListener('click', () => {
+  const k = b.dataset.prep;
+  if(k === 'pb' && restLeft() > 0){
+    toast('Rest first — ' + Math.ceil(restLeft()/60000) + ' min', 'Start anyway', () => openPrep('pb'), 5000);
+    return;
+  }
+  openPrep(k);
+}));
+document.querySelectorAll('[data-home]').forEach(b => b.addEventListener('click', goHome));
+function goHome(){ renderHome(); show('home'); }
+setInterval(() => { if($('home').classList.contains('on')) renderHome(); }, 30000);
+
+/* ================= prep ================= */
+let prepKind = 'co2';
+const STEPS = {
+  co2: [ { key:'co2Rounds', lab:'Rounds', min:4, max:12, step:1, show:v => v },
+         { key:'co2Pct', lab:'Hold', min:30, max:70, step:5, show:v => fmt(r5(S.pb*v/100)), sub:v => v + ' % of PB' } ],
+  o2:  [ { key:'o2Rounds', lab:'Rounds', min:4, max:12, step:1, show:v => v },
+         { key:'o2Pct', lab:'Longest hold', min:55, max:90, step:5, show:v => fmt(r5(S.pb*v/100)), sub:v => v + ' % of PB' } ],
+  pb:  [ { key:'breatheUp', lab:'Breathe-up', min:60, max:300, step:15, show:v => fmt(v) } ]
+};
+function openPrep(kind){ prepKind = kind; renderPrep(); show('prep'); }
+function renderPrep(){
+  const k = prepKind;
+  $('prepTitle').textContent = { co2:'CO₂', o2:'O₂', pb:'PB attempt' }[k];
+  $('prepGo').className = 'go ' + k;
+  $('prepSteps').innerHTML = STEPS[k].map((s,i) => `
+    <div class="step"><div class="lab">${s.lab}${s.sub ? `<small>${s.sub(S.set[s.key])}</small>` : ''}</div>
+      <div class="ctl"><button class="pm" data-st="${i}" data-d="-1">−</button><b class="num">${s.show(S.set[s.key])}</b><button class="pm" data-st="${i}" data-d="1">+</button></div></div>`).join('');
+  if(k === 'pb'){
+    $('prepTable').innerHTML = `<tr><td></td><td><span class="dot b"></span>${fmt(S.set.breatheUp)}</td><td><span class="dot h"></span>${fmt(S.pb)}+</td></tr>`;
+    $('prepTotal').textContent = '';
+  }else{
+    const rows = buildTable(k);
+    $('prepTable').innerHTML = rows.map((r,i) => `<tr><td>${i+1}</td><td><span class="dot b"></span>${fmt(r.breathe)}</td><td><span class="dot h"></span>${fmt(r.hold)}</td></tr>`).join('');
+    $('prepTotal').textContent = 'about ' + Math.round(tableTime(rows)/60) + ' min';
+  }
+}
+$('prepSteps').addEventListener('click', e => {
+  const b = e.target.closest('[data-st]'); if(!b) return;
+  const s = STEPS[prepKind][+b.dataset.st];
+  S.set[s.key] = Math.min(s.max, Math.max(s.min, S.set[s.key] + s.step * +b.dataset.d));
+  save(); renderPrep();
+});
+$('prepGo').addEventListener('click', () => startSession(prepKind));
+
+/* ================= sound ================= */
+let audio = null, master = null;
+function ensureAudio(){
+  if(!audio){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    audio = new AC();
+    master = audio.createDynamicsCompressor();
+    master.threshold.value = -14; master.knee.value = 12; master.ratio.value = 8;
+    master.connect(audio.destination);
+  }
+  if(audio.state === 'suspended') audio.resume();
+}
+function tone(freq, when, dur, gain, type){
+  if(!audio) return;
+  const t0 = audio.currentTime + when, o = audio.createOscillator(), g = audio.createGain();
+  o.type = type || 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(gain, t0 + .01);
+  g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+  o.connect(g).connect(master); o.start(t0); o.stop(t0 + dur + .02);
+}
+function bell(f, when, dur, gain){ tone(f, when, dur, gain, 'triangle'); tone(f*2, when, dur*.7, gain*.5); tone(f*3, when, dur*.45, gain*.25); }
+const beep     = () => bell(880, 0, .16, .32);
+const holdCue  = () => { bell(523.25, 0, .5, .38); bell(392, .22, .7, .38); };        // falling: close up
+const breatheCue = () => { bell(523.25, 0, .45, .38); bell(783.99, .2, .7, .38); };   // rising: open up
+const tick     = () => tone(330, 0, .09, .22, 'triangle');                             // a contraction tap
+const recordCue = () => { bell(880,0,.36,.3); bell(1174.7,.1,.36,.3); bell(1396.9,.2,.46,.34); bell(1760,.32,.7,.3); };
+const finishCue = () => { bell(659.25,0,.45,.34); bell(880,.13,.45,.34); bell(1046.5,.26,.8,.36); };
+
+let voice = null;
+function pickVoice(){
+  const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+  voice = vs.find(v => /en-GB/i.test(v.lang) && /Daniel|Serena|Kate/i.test(v.name))
+       || vs.find(v => /^en-GB/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)) || null;
+}
+if(window.speechSynthesis){ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+function say(text){
+  if(!S.set.voice || !window.speechSynthesis) return;
+  try{
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    if(voice) u.voice = voice;
+    u.lang = voice ? voice.lang : 'en-GB'; u.rate = .92; u.volume = 1;
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+function sayTime(s){
+  const m = Math.floor(s/60), r = s % 60;
+  if(!m) return r + ' seconds';
+  return m + (m === 1 ? ' minute' : ' minutes') + (r ? ' ' + r : '');
+}
+
+/* iPhone mutes web audio when the ring switch is on silent. A silent looping clip
+   moves the page onto the media channel, which the switch doesn't touch
+   (same trick as AMS ColdShower). Only runs during a session. */
+let keeper = null;
+function claimMedia(){
+  if(!S.set.media) return;
+  try{
+    if(!keeper){
+      const sr = 8000, n = 800, buf = new ArrayBuffer(44 + n*2), v = new DataView(buf);
+      const wr = (o,s) => { for(let i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); };
+      wr(0,'RIFF'); v.setUint32(4,36+n*2,true); wr(8,'WAVEfmt '); v.setUint32(16,16,true); v.setUint16(20,1,true);
+      v.setUint16(22,1,true); v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+      wr(36,'data'); v.setUint32(40,n*2,true);
+      keeper = new Audio(URL.createObjectURL(new Blob([buf], {type:'audio/wav'})));
+      keeper.loop = true; keeper.setAttribute('playsinline','');
+    }
+    const p = keeper.play(); p && p.catch && p.catch(() => {});
+  }catch(e){}
+}
+function releaseMedia(){ try{ keeper && keeper.pause(); }catch(e){} }
+
+let wakeLock = null;
+async function keepAwake(){ try{ if('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); }catch(e){} }
+function releaseAwake(){ try{ wakeLock && wakeLock.release(); }catch(e){} wakeLock = null; }
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible' && run) keepAwake();
+});
+
+/* ================= the session engine ================= */
+/* A session is a list of steps: breathe (fixed length) or hold (fixed length, or
+   open-ended for a PB attempt). Time always comes from the clock, never from
+   counting ticks, so a throttled timer can't make a hold longer or shorter. */
+let run = null;
+
+function startSession(kind){
+  ensureAudio(); claimMedia(); keepAwake();
+  const steps = [];
+  if(kind === 'pb'){
+    steps.push({ k:'breathe', dur:S.set.breatheUp, round:0 });
+    steps.push({ k:'hold', dur:null, round:0 });
+  }else{
+    buildTable(kind).forEach((r,i) => { steps.push({ k:'breathe', dur:r.breathe, round:i }); steps.push({ k:'hold', dur:r.hold, round:i }); });
+  }
+  run = { kind, steps, i:-1, t0:0, lastLeft:null, marks:[], holds:[], recordHit:false, pbBefore:S.pb,
+          nRounds: kind === 'pb' ? 0 : steps.length/2, started:Date.now() };
+  show('run');
+  nextStep();
+  requestAnimationFrame(frame);
+}
+
+function nextStep(){
+  const r = run;
+  if(r.i >= 0 && r.steps[r.i].k === 'hold') r.holds.push({ planned:r.steps[r.i].dur, secs:r.steps[r.i].dur, marks:r.marks, done:true });
+  r.i++;
+  if(r.i >= r.steps.length){ finish(true); return; }
+  const st = r.steps[r.i];
+  r.t0 = performance.now(); r.lastLeft = null; r.marks = []; r.lastCall = 0;
+  if(st.k === 'breathe'){ breatheCue(); setTimeout(() => say(r.kind === 'pb' ? 'Breathe up. Slow and calm.' : 'Breathe'), 450); }
+  else { holdCue(); setTimeout(() => say('Hold'), 450); }
+  renderRun();
+}
+
+function frame(){ if(!run) return; tickRun(); requestAnimationFrame(frame); }
+function tickRun(){
+  if(!run) return;
+  const r = run, st = r.steps[r.i];
+  const el = (performance.now() - r.t0) / 1000;
+  if(st.dur !== null){
+    const left = Math.ceil(st.dur - el);
+    if(left !== r.lastLeft){
+      r.lastLeft = left;
+      cueFor(st, left);
+      if(left <= 0){ nextStep(); return; }
+    }
+  }else{                                             // open PB hold: count up
+    const s = Math.floor(el);
+    if(s !== r.lastLeft){
+      r.lastLeft = s;
+      if(!r.recordHit && S.pb > 0 && s > S.pb){ r.recordHit = true; recordCue(); }
+      else if(S.set.callouts && s > 0 && s % 30 === 0) say(sayTime(s));
+    }
+  }
+  paintClock(el);
+}
+/* rAF stops when the page is hidden; this keeps cues roughly on time anyway */
+setInterval(() => { if(run && document.visibilityState === 'hidden') tickRun(); }, 500);
+
+function cueFor(st, left){
+  if(left <= 0) return;
+  if(st.k === 'breathe'){
+    if(left === 60 && st.dur >= 90) say('One minute');
+    else if(left === 30 && st.dur >= 45) say('30 seconds');
+    else if(left === 10 && st.dur >= 15) say('Get ready');
+    else if(left <= 3) beep();
+  }else{
+    if(left === 30 && st.dur >= 60) say('30');
+    else if(left === 10 && st.dur >= 20) say('10');
+    else if(left <= 3) beep();
+  }
+}
+
+function renderRun(){
+  const r = run, st = r.steps[r.i];
+  $('word').textContent = st.k === 'breathe' ? 'BREATHE' : 'HOLD';
+  $('rounds').innerHTML = r.kind === 'pb' ? '' :
+    Array.from({length:r.nRounds}, (_,i) => `<i class="${i < st.round ? 'done' : ''}${i === st.round ? ' now' : ''}"></i>`).join('');
+  $('marks').innerHTML = r.marks.map(() => '<i></i>').join('');
+}
+function paintClock(el){
+  const r = run, st = r.steps[r.i], run$ = $('run');
+  let cls;
+  if(st.dur !== null){
+    const left = Math.max(0, st.dur - el);
+    $('clock').textContent = fmt(Math.ceil(left));
+    cls = st.k === 'hold' ? 'hold' : (left <= 10 ? 'ready' : 'breathe');
+  }else{
+    $('clock').textContent = fmt(Math.floor(el));
+    cls = r.recordHit ? 'record' : 'hold';
+  }
+  if(run$.className.indexOf(cls) === -1) run$.className = 'screen on ' + cls;
+}
+
+/* ---- touch: tap = contraction, press and hold 1 s = stop ---- */
+const HOLD_MS = 1000;
+let press = null;
+$('run').addEventListener('pointerdown', e => {
+  if(!run) return;
+  e.preventDefault();
+  const ring = $('stopring');
+  ring.style.transition = 'none'; ring.style.strokeDashoffset = 283;
+  requestAnimationFrame(() => { ring.style.transition = `stroke-dashoffset ${HOLD_MS}ms linear`; ring.style.strokeDashoffset = 0; });
+  press = { t:performance.now(), timer:setTimeout(() => { press = null; resetRing(); stopPressed(); }, HOLD_MS) };
+});
+function endPress(e){
+  if(!press) return;
+  clearTimeout(press.timer);
+  const short = performance.now() - press.t < 450;
+  press = null; resetRing();
+  if(short && run && run.steps[run.i].k === 'hold') contraction();
+}
+['pointerup','pointercancel','pointerleave'].forEach(ev => $('run').addEventListener(ev, endPress));
+function resetRing(){ const ring = $('stopring'); ring.style.transition = 'stroke-dashoffset .2s'; ring.style.strokeDashoffset = 283; }
+function contraction(){
+  const el = (performance.now() - run.t0) / 1000;
+  run.marks.push(Math.round(el));
+  tick();
+  if(navigator.vibrate) navigator.vibrate(25);
+  const rp = $('ripple'); rp.style.transition = 'none'; rp.style.opacity = .18;
+  requestAnimationFrame(() => { rp.style.transition = 'opacity .45s'; rp.style.opacity = 0; });
+  $('marks').insertAdjacentHTML('beforeend', '<i></i>');
+}
+function stopPressed(){
+  const r = run, st = r.steps[r.i];
+  if(r.kind === 'pb' && st.k === 'hold'){
+    r.holds.push({ planned:null, secs:Math.floor((performance.now() - r.t0)/1000), marks:r.marks, done:true });
+    finish(true, true);
+  }else{
+    if(st.k === 'hold') r.holds.push({ planned:st.dur, secs:Math.floor((performance.now() - r.t0)/1000), marks:r.marks, done:false });
+    finish(false);
+  }
+}
+
+function finish(complete, pbEnded){
+  const r = run; run = null;
+  releaseAwake();
+  setTimeout(releaseMedia, 4000);
+  let rec = null;
+  if(r.kind === 'pb'){
+    if(!r.holds.length){ say('Stopped'); goHome(); return; }       // stopped during breathe-up: nothing to keep
+    const h = r.holds[0], isRecord = h.secs > r.pbBefore;
+    S.lastPbAttempt = Date.now();
+    if(isRecord) S.pb = h.secs;
+    rec = { t:r.started, type:'pb', hold:h.secs, marks:h.marks, record:isRecord, pbBefore:r.pbBefore, complete:true };
+    if(isRecord){ recordCue(); setTimeout(() => say('Breathe. New personal best.'), 900); }
+    else { breatheCue(); setTimeout(() => say('Breathe'), 450); }
+  }else{
+    if(!r.holds.length){ say('Stopped'); goHome(); return; }
+    rec = { t:r.started, type:r.kind, rounds:r.nRounds, holds:r.holds.map(h => ({ planned:h.planned, secs:h.secs, marks:h.marks, done:h.done })), complete };
+    if(complete){ finishCue(); setTimeout(() => say('Breathe. Well done.'), 900); }
+    else say('Stopped');
+  }
+  S.sessions.push(rec); save();
+  showDone(rec);
+}
+
+/* ================= summary ================= */
+function showDone(rec){
+  const d = $('done');
+  show('done');
+  $('bars').innerHTML = '';
+  if(rec.type === 'pb'){
+    d.className = 'screen on ' + (rec.record ? 'record' : 'good');
+    $('doneTag').textContent = rec.record ? 'NEW PB' : 'PB ' + fmt(rec.pbBefore);
+    $('doneBig').textContent = fmt(rec.hold);
+    $('doneSub').textContent = rec.marks.length ? '● ' + rec.marks.length + '   first ' + fmt(rec.marks[0]) : '';
+  }else{
+    d.className = 'screen on good';
+    const ok = rec.holds.filter(h => h.done).length;
+    $('doneTag').textContent = rec.type === 'co2' ? 'CO₂' : 'O₂';
+    $('doneBig').textContent = ok + '/' + rec.rounds;
+    const m = rec.holds.reduce((a,h) => a + h.marks.length, 0);
+    $('doneSub').textContent = m ? '● ' + m : '';
+    const max = Math.max(...rec.holds.map(h => h.planned || h.secs), 1);
+    $('bars').innerHTML = Array.from({length:rec.rounds}, (_,i) => {
+      const h = rec.holds[i];
+      if(!h) return `<div class="bar" style="height:6px"></div>`;
+      const ht = 100 * (h.planned || h.secs) / max;
+      const ticks = h.marks.map(s => `<b style="bottom:${Math.min(97, 100*s/(h.planned||h.secs))}%"></b>`).join('');
+      return `<div class="bar ${h.done ? 'ok' : ''}" style="height:${ht}%">${ticks}</div>`;
+    }).join('');
+  }
+}
+$('doneOk').addEventListener('click', goHome);
+
+/* ================= history ================= */
+const TYPE = { co2:'CO₂', o2:'O₂', pb:'PB' };
+function renderHistory(){
+  const list = S.sessions.slice().reverse();
+  $('histList').innerHTML = list.length ? list.map(s => {
+    const dt = new Date(s.t);
+    const when = dt.toLocaleDateString('sv-SE') + ' ' + dt.toLocaleTimeString('sv-SE', {hour:'2-digit', minute:'2-digit'});
+    let big, sub;
+    if(s.type === 'pb'){
+      big = fmt(s.hold) + (s.record ? ' ★' : '');
+      sub = when + (s.marks.length ? ' · ' + s.marks.length + ' contractions, first ' + fmt(s.marks[0]) : '');
+    }else{
+      const ok = s.holds.filter(h => h.done).length, m = s.holds.reduce((a,h) => a + h.marks.length, 0);
+      big = ok + '/' + s.rounds;
+      sub = when + ' · longest ' + fmt(Math.max(...s.holds.map(h => h.secs))) + (m ? ' · ' + m + ' contractions' : '');
+    }
+    return `<div class="hrow"><span class="chip ${s.type}">${TYPE[s.type]}</span><div class="mid"><b class="num">${big}</b><small>${sub}</small></div><button class="del" data-del="${s.t}">Delete</button></div>`;
+  }).join('') : '<div class="empty">No sessions yet</div>';
+  drawChart();
+}
+$('histList').addEventListener('click', e => {
+  const b = e.target.closest('[data-del]'); if(!b) return;
+  if(!confirm('Delete this session?')) return;
+  S.sessions = S.sessions.filter(s => String(s.t) !== b.dataset.del);
+  save(); renderHistory();
+});
+function drawChart(){
+  const svg = $('chart'), pts = S.sessions.filter(s => s.type === 'pb');
+  const W = svg.clientWidth || 320, H = 150, pad = 26;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  if(pts.length < 2){ svg.innerHTML = `<text x="${W/2}" y="${H/2}" fill="#9fb2c4" text-anchor="middle" font-size="15">Two PB attempts draw the line</text>`; return; }
+  const max = Math.max(...pts.map(p => p.hold)) * 1.1, min = Math.min(...pts.map(p => p.hold)) * .8;
+  const x = i => pad + i * (W - pad*2) / (pts.length - 1);
+  const y = v => H - pad - (v - min) / (max - min) * (H - pad*2);
+  const path = pts.map((p,i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.hold).toFixed(1)).join(' ');
+  svg.innerHTML = `<path d="${path}" fill="none" stroke="#e0b64a" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>` +
+    pts.map((p,i) => `<circle cx="${x(i)}" cy="${y(p.hold)}" r="${p.record ? 6 : 4}" fill="${p.record ? '#e0b64a' : '#eef3f8'}"/>`).join('') +
+    `<text x="${x(pts.length-1)}" y="${y(pts[pts.length-1].hold) - 12}" fill="#eef3f8" text-anchor="end" font-size="15" font-weight="700">${fmt(pts[pts.length-1].hold)}</text>`;
+}
+$('toHistory').addEventListener('click', () => { show('history'); renderHistory(); });
+
+/* ================= settings ================= */
+function syncSw(){
+  $('swVoice').setAttribute('aria-checked', S.set.voice);
+  $('swCall').setAttribute('aria-checked', S.set.callouts);
+  $('swMedia').setAttribute('aria-checked', S.set.media);
+  $('setPB').textContent = fmt(S.pb);
+  $('backupWhen').textContent = S.backupAt ? 'Last backup: ' + new Date(S.backupAt).toLocaleDateString('sv-SE') : 'No backup saved yet.';
+}
+[['swVoice','voice'],['swCall','callouts'],['swMedia','media']].forEach(([id,k]) =>
+  $(id).addEventListener('click', () => { S.set[k] = !S.set[k]; save(); syncSw(); }));
+document.querySelectorAll('[data-pbadj]').forEach(b => b.addEventListener('click', () => {
+  S.pb = Math.max(15, Math.min(1200, S.pb + +b.dataset.pbadj)); save(); syncSw();
+}));
+$('testSound').addEventListener('click', () => {
+  ensureAudio(); claimMedia();
+  holdCue(); setTimeout(() => say('Hold'), 450);
+  setTimeout(() => { beep(); }, 1800); setTimeout(beep, 2800); setTimeout(beep, 3800);
+  setTimeout(() => { breatheCue(); setTimeout(() => say('Breathe'), 450); }, 4800);
+  setTimeout(releaseMedia, 8000);
+});
+$('toSettings').addEventListener('click', () => { syncSw(); show('settings'); });
+$('vlog').innerHTML = VERSIONLOG.map(v => `<p><b>v${v.v} — ${v.title}</b><br><small>${v.d}</small><br>${v.what}<br><span class="why">${v.why}</span></p>`).join('');
+$('verLine').textContent = 'AMS Apnea v' + VERSIONLOG[0].v;
+
+/* ---- backups: only call it saved once the save really happened ---- */
+function backupJSON(){ return JSON.stringify({ format:'ams-apnea-backup', version:VERSIONLOG[0].v, savedAt:new Date().toISOString(), data:S }, null, 1); }
+function stampBackup(){ S.backupAt = Date.now(); save(); syncSw(); }
+$('exportBtn').addEventListener('click', async () => {
+  const name = 'ams-apnea-backup-' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.json';
+  const blob = new Blob([backupJSON()], {type:'application/json'});
+  const file = new File([blob], name, {type:'application/json'});
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file], title:'AMS Apnea backup'}); stampBackup(); toast('Backup saved ✓'); }
+    catch(err){ toast(err && err.name === 'AbortError' ? 'Cancelled — nothing saved' : 'Not saved'); }
+    return;
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  stampBackup(); toast('Backup downloaded ✓');
+});
+$('copyBtn').addEventListener('click', async () => {
+  try{ await navigator.clipboard.writeText(backupJSON()); stampBackup(); toast('Copied ✓'); }
+  catch(e){ toast('Could not copy'); }
+});
+$('importBtn').addEventListener('click', () => $('importFile').click());
+$('importFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if(!f) return;
+  try{
+    const j = JSON.parse(await f.text());
+    if(j.format !== 'ams-apnea-backup' || !j.data || !Array.isArray(j.data.sessions)) throw 0;
+    if(!confirm(`Replace this device's data with the backup (${j.data.sessions.length} sessions, PB ${fmt(j.data.pb)})?`)) return;
+    localStorage.setItem(KEY, JSON.stringify(j.data));
+    S = load();
+    toast('Restored ' + S.sessions.length + ' sessions ✓'); syncSw();
+  }catch(err){ toast('That file is not an AMS Apnea backup'); }
+});
+
+/* ---- app update ---- */
+let lastCheck = 0;
+async function checkForUpdate(manual){
+  if(!manual && Date.now() - lastCheck < 300000) return;
+  lastCheck = Date.now();
+  try{
+    const res = await fetch('version.json?vercheck=' + Date.now(), {cache:'no-store'});
+    if(!res.ok) return;
+    const j = await res.json();
+    if(j.version && j.version !== VERSIONLOG[0].v) toast('Version ' + j.version + ' is ready', 'Update', applyUpdate, 12000);
+    else if(manual) toast('Latest version (v' + VERSIONLOG[0].v + ') ✓');
+  }catch(e){ if(manual) toast('Update check failed — online?'); }
+}
+function applyUpdate(){
+  const reload = () => location.reload();
+  if(navigator.serviceWorker && navigator.serviceWorker.getRegistration)
+    navigator.serviceWorker.getRegistration().then(r => r && r.update()).then(reload, reload);
+  else reload();
+}
+$('updateBtn').addEventListener('click', () => checkForUpdate(true));
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !run) checkForUpdate(false); });
+
+/* ================= first run ================= */
+let setupPB = 120;
+document.querySelectorAll('[data-setup]').forEach(b => b.addEventListener('click', () => {
+  setupPB = Math.max(15, Math.min(1200, setupPB + +b.dataset.setup)); $('setupPB').textContent = fmt(setupPB);
+}));
+$('setupGo').addEventListener('click', () => { S.pb = setupPB; save(); goHome(); });
+
+if(S.pb > 0) goHome(); else show('setup');
+if('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js?v=' + VERSIONLOG[0].v).catch(() => {});
+checkForUpdate(false);
+</script>
+</body>
+</html>
