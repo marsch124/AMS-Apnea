@@ -40,6 +40,21 @@
   .big .s{font-size:22px; font-weight:700; opacity:.85}
   .big.co2{background:var(--co2)} .big.o2{background:var(--o2)} .big.pb{background:var(--pb)}
   .big.rest{opacity:.55}
+  .who{display:flex; align-items:center; gap:12px; margin:4px auto 0; padding:10px 22px 10px 12px; border-radius:40px; background:var(--card); font-size:26px; font-weight:800; max-width:100%}
+  .who i{width:30px; height:30px; border-radius:50%; flex:none}
+  .who span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .person{display:flex; align-items:center; justify-content:space-between; width:100%; border-radius:24px; padding:0 24px; height:96px; margin-bottom:14px; text-align:left}
+  .person b{font-size:34px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .person span{font-size:24px; font-weight:700; opacity:.9}
+  .person.add{background:var(--card); justify-content:center; font-size:40px; font-weight:800}
+  .person.cur{outline:4px solid #fff; outline-offset:-4px}
+  #setupName{width:100%; font:inherit; font-size:32px; font-weight:800; text-align:center; color:var(--ink); background:var(--card); border:0; border-radius:18px; padding:14px; margin-top:18px}
+  .prow{display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--line)}
+  .prow:first-of-type{border-top:0}
+  .prow i{width:22px; height:22px; border-radius:50%; flex:none}
+  .prow b{flex:1; font-size:20px}
+  .prow button{padding:8px 10px; font-size:15px; font-weight:700; border-radius:10px; background:var(--line)}
+  .prow button.del{background:none; color:#e39b9b}
   .bottombar{margin-top:auto; display:flex; justify-content:space-between; padding-top:10px}
   .round{width:62px; height:62px; border-radius:50%; background:var(--card); display:grid; place-items:center}
 
@@ -148,8 +163,10 @@
 
 <!-- ============ first run ============ -->
 <section class="screen" id="setup">
+  <button class="round" id="setupBack" aria-label="Back" style="position:absolute; top:calc(env(safe-area-inset-top) + 18px); left:20px" hidden><svg class="ico"><use href="#i-back"/></svg></button>
   <h1>AMS Apnea</h1>
-  <div class="note" style="font-size:19px">Your personal best today?</div>
+  <input id="setupName" type="text" maxlength="24" placeholder="Name" autocomplete="off" autocapitalize="words">
+  <div class="note" style="font-size:19px; margin-top:22px">Personal best today?</div>
   <div class="step" style="justify-content:center; gap:18px; margin-top:22px">
     <button class="pm" data-setup="-5">−</button>
     <b id="setupPB" class="num" style="font-size:64px; font-weight:800; min-width:170px">2:00</b>
@@ -161,6 +178,7 @@
 
 <!-- ============ home ============ -->
 <section class="screen" id="home">
+  <button class="who" id="who"><i id="whoDot"></i><span id="whoName"></span></button>
   <div class="pbline"><small>PERSONAL BEST</small><b id="homePB" class="num">2:00</b></div>
   <button class="big co2" data-prep="co2"><span class="t">CO₂</span><span class="s num" id="hCo2"></span></button>
   <button class="big o2" data-prep="o2"><span class="t">O₂</span><span class="s num" id="hO2"></span></button>
@@ -169,6 +187,15 @@
     <button class="round" id="toHistory" aria-label="History"><svg class="ico"><use href="#i-hist"/></svg></button>
     <button class="round" id="toSettings" aria-label="Settings"><svg class="ico"><use href="#i-gear"/></svg></button>
   </div>
+</section>
+
+<!-- ============ people: who is training ============ -->
+<section class="screen" id="people">
+  <div class="top">
+    <button class="round" data-home aria-label="Back"><svg class="ico"><use href="#i-back"/></svg></button>
+    <h1>Who?</h1>
+  </div>
+  <div id="peopleList"></div>
 </section>
 
 <!-- ============ prep: see the table, adjust, start ============ -->
@@ -211,7 +238,7 @@
 <section class="screen" id="history">
   <div class="top">
     <button class="round" data-home aria-label="Back"><svg class="ico"><use href="#i-back"/></svg></button>
-    <h1>History</h1>
+    <h1 id="histTitle">History</h1>
   </div>
   <div class="panel"><h2>Personal best over time</h2><svg id="chart"></svg></div>
   <div class="panel" id="histList"></div>
@@ -225,7 +252,13 @@
   </div>
 
   <div class="panel">
-    <h2>Personal best</h2>
+    <h2>People</h2>
+    <div id="peopleRows"></div>
+    <p class="note">Each person has their own personal best, history and settings.</p>
+  </div>
+
+  <div class="panel">
+    <h2 id="setPBhead">Personal best</h2>
     <div class="step">
       <div class="lab">My PB<small>Tables are built from it</small></div>
       <div class="ctl"><button class="pm" data-pbadj="-5">−</button><b id="setPB" class="num">2:00</b><button class="pm" data-pbadj="5">+</button></div>
@@ -254,6 +287,7 @@
       <p><b>PB attempt</b> — a calm breathe-up, then one hold for as long as you like. Beat your PB and the screen turns gold and your PB updates itself.</p>
       <p><b>During a hold</b> — tap anywhere on the screen each time you feel a contraction. Each tap adds a white dot.</p>
       <p><b>To stop</b> — press and hold anywhere for one second. In a PB attempt that ends the hold and saves it.</p>
+      <p><b>People</b> — tap the name at the top of the home screen to switch person or add one. Each person has their own personal best, history, tables, routine choice, sound settings and PB rest. Rename or remove people in Settings → People.</p>
       <p><b>Pre-routines</b> — on the PB screen, pick 30, 40, 45, 50 or 60 minutes (— means just the breathe-up). The voice leads you through four parts and then straight into your PB hold:</p>
       <ul>
         <li><b>Stretching</b> (purple) — neck, shoulders, ribs, twists, cat-cow, child's pose, belly breaths. "Other side" is said halfway.</li>
@@ -267,7 +301,7 @@
       <p>Before a table you can change the number of rounds and the hold length with − and +. It remembers your choice.</p>
     </details>
     <details><summary>Your data</summary>
-      <p>Everything stays on this device. Save a backup now and then.</p>
+      <p>Everything stays on this device. Save a backup now and then — one file holds everyone.</p>
       <p class="note" id="backupWhen"></p>
       <button class="btn" id="exportBtn">Save a backup file</button>
       <button class="btn" id="copyBtn">Copy backup to clipboard</button>
@@ -285,6 +319,9 @@
 <script>
 /* ================= version log (newest first — [0] IS the app version) ================= */
 const VERSIONLOG = [
+  { v:'1.3', d:'2026-09-13 18:56', title:'More than one person',
+    what:'Tap the name at the top of the home screen to switch person or add someone. Each person has their own personal best, history, table and routine settings, sound settings and PB rest. Your existing data moved over under "Martin". Rename or remove people in Settings. Backups now hold everyone.',
+    why:'Two people can train with the same phone without mixing up records.' },
   { v:'1.2', d:'2026-09-13 18:53', title:'Correct times in the version history',
     what:'Every date and time here is now Stockholm time — the moment each version actually went online.',
     why:'The history shows when things really changed.' },
@@ -297,7 +334,8 @@ const VERSIONLOG = [
 ];
 
 const $ = id => document.getElementById(id);
-const KEY = 'amsap.v1';
+const KEY_V1 = 'amsap.v1';                   // single-person data before 1.3 — left in place, never deleted
+const KEY = 'amsap.v2';
 const REST_MIN = 10;                         // rest after a PB attempt
 
 /* ================= data ================= */
@@ -306,18 +344,36 @@ function defaults(){
     set:{ voice:true, callouts:true, media:true, breatheUp:120,
           co2Rounds:8, co2Pct:50, o2Rounds:8, o2Pct:80, routine:0, pace:true } };
 }
-let S = load();
-function load(){
+const COLORS = ['#2f5fa0', '#b0506e', '#2e8b6e', '#8a5fb0', '#b07a2e', '#4f7f8f'];
+function person(raw, i){
+  const d = defaults();
+  return Object.assign(d, raw, { set:Object.assign(d.set, raw.set || {}), sessions:Array.isArray(raw.sessions) ? raw.sessions : [],
+    id: raw.id || ('p' + Date.now().toString(36) + i), name: raw.name || 'Person ' + (i+1), color: raw.color || COLORS[i % COLORS.length] });
+}
+/* The device holds { current, backupAt, people:[…] }. S is always the current person. */
+function loadDB(){
   try{
     const raw = JSON.parse(localStorage.getItem(KEY));
-    if(raw && typeof raw === 'object'){
-      const d = defaults();
-      return Object.assign(d, raw, { set:Object.assign(d.set, raw.set || {}), sessions:Array.isArray(raw.sessions) ? raw.sessions : [] });
+    if(raw && Array.isArray(raw.people) && raw.people.length){
+      const db = { current:raw.current, backupAt:raw.backupAt || 0, people:raw.people.map(person) };
+      if(!db.people.some(p => p.id === db.current)) db.current = db.people[0].id;
+      return db;
     }
   }catch(e){}
-  return defaults();
+  try{                                              // upgrade from 1.2 and earlier: the one person is Martin
+    const old = JSON.parse(localStorage.getItem(KEY_V1));
+    if(old && typeof old === 'object' && (old.pb > 0 || (old.sessions || []).length)){
+      const p = person(Object.assign({}, old, { id:'p1', name:'Martin', color:COLORS[0] }), 0);
+      return { current:'p1', backupAt:old.backupAt || 0, people:[p] };
+    }
+  }catch(e){}
+  return { current:null, backupAt:0, people:[] };
 }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+let DB = loadDB();
+let S = DB.people.find(p => p.id === DB.current) || null;
+function save(){ try{ if(DB.people.length) localStorage.setItem(KEY, JSON.stringify(DB)); }catch(e){} }
+if(S && !localStorage.getItem(KEY)) save();        // write the upgraded shape once; v1 stays as a safety copy
+function switchTo(id){ DB.current = id; S = DB.people.find(p => p.id === id); save(); }
 
 /* ================= helpers ================= */
 const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
@@ -356,6 +412,7 @@ const tableTime = rows => rows.reduce((a,r) => a + r.breathe + r.hold, 0);
 function restLeft(){ return Math.max(0, S.lastPbAttempt + REST_MIN*60000 - Date.now()); }
 function renderHome(){
   $('homePB').textContent = fmt(S.pb);
+  $('whoName').textContent = S.name; $('whoDot').style.background = S.color;
   $('hCo2').textContent = fmt(tableTime(buildTable('co2'))) ;
   $('hO2').textContent = fmt(tableTime(buildTable('o2')));
   const rest = restLeft();
@@ -863,7 +920,7 @@ function drawChart(){
     pts.map((p,i) => `<circle cx="${x(i)}" cy="${y(p.hold)}" r="${p.record ? 6 : 4}" fill="${p.record ? '#e0b64a' : '#eef3f8'}"/>`).join('') +
     `<text x="${x(pts.length-1)}" y="${y(pts[pts.length-1].hold) - 12}" fill="#eef3f8" text-anchor="end" font-size="15" font-weight="700">${fmt(pts[pts.length-1].hold)}</text>`;
 }
-$('toHistory').addEventListener('click', () => { show('history'); renderHistory(); });
+$('toHistory').addEventListener('click', () => { $('histTitle').textContent = S.name; show('history'); renderHistory(); });
 
 /* ================= settings ================= */
 function syncSw(){
@@ -872,7 +929,7 @@ function syncSw(){
   $('swMedia').setAttribute('aria-checked', S.set.media);
   $('swPace').setAttribute('aria-checked', S.set.pace);
   $('setPB').textContent = fmt(S.pb);
-  $('backupWhen').textContent = S.backupAt ? 'Last backup: ' + new Date(S.backupAt).toLocaleDateString('sv-SE') : 'No backup saved yet.';
+  $('backupWhen').textContent = DB.backupAt ? 'Last backup: ' + new Date(DB.backupAt).toLocaleDateString('sv-SE') : 'No backup saved yet.';
 }
 [['swVoice','voice'],['swCall','callouts'],['swMedia','media'],['swPace','pace']].forEach(([id,k]) =>
   $(id).addEventListener('click', () => { S.set[k] = !S.set[k]; save(); syncSw(); }));
@@ -886,13 +943,13 @@ $('testSound').addEventListener('click', () => {
   setTimeout(() => { breatheCue(); setTimeout(() => say('Breathe'), 450); }, 4800);
   setTimeout(releaseMedia, 8000);
 });
-$('toSettings').addEventListener('click', () => { syncSw(); show('settings'); });
+$('toSettings').addEventListener('click', () => { syncSw(); renderPeopleRows(); show('settings'); });
 $('vlog').innerHTML = VERSIONLOG.map(v => `<p><b>v${v.v} — ${v.title}</b><br><small>${v.d}</small><br>${v.what}<br><span class="why">${v.why}</span></p>`).join('');
 $('verLine').textContent = 'AMS Apnea v' + VERSIONLOG[0].v;
 
 /* ---- backups: only call it saved once the save really happened ---- */
-function backupJSON(){ return JSON.stringify({ format:'ams-apnea-backup', version:VERSIONLOG[0].v, savedAt:new Date().toISOString(), data:S }, null, 1); }
-function stampBackup(){ S.backupAt = Date.now(); save(); syncSw(); }
+function backupJSON(){ return JSON.stringify({ format:'ams-apnea-backup', version:VERSIONLOG[0].v, savedAt:new Date().toISOString(), db:DB }, null, 1); }
+function stampBackup(){ DB.backupAt = Date.now(); save(); syncSw(); }
 $('exportBtn').addEventListener('click', async () => {
   const name = 'ams-apnea-backup-' + new Date().toISOString().slice(0,16).replace(/[:T]/g,'-') + '.json';
   const blob = new Blob([backupJSON()], {type:'application/json'});
@@ -915,11 +972,21 @@ $('importFile').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = ''; if(!f) return;
   try{
     const j = JSON.parse(await f.text());
-    if(j.format !== 'ams-apnea-backup' || !j.data || !Array.isArray(j.data.sessions)) throw 0;
-    if(!confirm(`Replace this device's data with the backup (${j.data.sessions.length} sessions, PB ${fmt(j.data.pb)})?`)) return;
-    localStorage.setItem(KEY, JSON.stringify(j.data));
-    S = load();
-    toast('Restored ' + S.sessions.length + ' sessions ✓'); syncSw();
+    if(j.format !== 'ams-apnea-backup') throw 0;
+    if(j.db && Array.isArray(j.db.people) && j.db.people.length){           // 1.3+: everyone
+      const n = j.db.people.reduce((a,p) => a + (p.sessions || []).length, 0);
+      if(!confirm(`Replace everyone on this phone with the backup (${j.db.people.map(p => p.name).join(', ')} · ${n} sessions)?`)) return;
+      const people = j.db.people.map(person);
+      DB = { current: people.some(p => p.id === j.db.current) ? j.db.current : people[0].id, backupAt:j.db.backupAt || 0, people };
+    }else if(j.data && Array.isArray(j.data.sessions)){                     // before 1.3: one person
+      if(!confirm(`Replace ${S.name}'s data with this older backup (${j.data.sessions.length} sessions, PB ${fmt(j.data.pb)})?`)) return;
+      const i = DB.people.indexOf(S);
+      DB.people[i] = person(Object.assign({}, j.data, { id:S.id, name:S.name, color:S.color }), i);
+    }else throw 0;
+    switchTo(DB.current);
+    const back = JSON.parse(localStorage.getItem(KEY));                    // prove it landed before saying so
+    const got = back.people.reduce((a,p) => a + p.sessions.length, 0);
+    toast('Restored ' + back.people.length + (back.people.length === 1 ? ' person, ' : ' people, ') + got + ' sessions ✓'); syncSw(); renderPeopleRows();
   }catch(err){ toast('That file is not an AMS Apnea backup'); }
 });
 
@@ -945,14 +1012,59 @@ function applyUpdate(){
 $('updateBtn').addEventListener('click', () => checkForUpdate(true));
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !run) checkForUpdate(false); });
 
-/* ================= first run ================= */
+/* ================= people ================= */
+const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function openPeople(){
+  $('peopleList').innerHTML = DB.people.map(p => `<button class="person ${p.id === S.id ? 'cur' : ''}" data-pick="${p.id}" style="background:${p.color}"><b>${esc(p.name)}</b><span class="num">${fmt(p.pb)}</span></button>`).join('')
+    + `<button class="person add" id="addPerson">+</button>`;
+  show('people');
+}
+$('who').addEventListener('click', openPeople);
+$('peopleList').addEventListener('click', e => {
+  if(e.target.closest('#addPerson')){ openSetup(true); return; }
+  const b = e.target.closest('[data-pick]'); if(!b) return;
+  switchTo(b.dataset.pick); goHome();
+});
+function renderPeopleRows(){
+  $('peopleRows').innerHTML = DB.people.map(p => `<div class="prow"><i style="background:${p.color}"></i><b>${esc(p.name)}</b>
+    <button data-rename="${p.id}">Rename</button>${DB.people.length > 1 ? `<button class="del" data-remove="${p.id}">Remove</button>` : ''}</div>`).join('');
+  $('setPBhead').textContent = 'Personal best — ' + S.name;
+}
+$('peopleRows').addEventListener('click', e => {
+  const r = e.target.closest('[data-rename]'), d = e.target.closest('[data-remove]');
+  if(r){
+    const p = DB.people.find(x => x.id === r.dataset.rename);
+    const n = (prompt('Name', p.name) || '').trim().slice(0, 24);
+    if(n){ p.name = n; save(); renderPeopleRows(); }
+  }else if(d){
+    const p = DB.people.find(x => x.id === d.dataset.remove);
+    if(!confirm(`Remove ${p.name} and all ${p.sessions.length} of their sessions? Save a backup first if unsure.`)) return;
+    DB.people = DB.people.filter(x => x !== p);
+    if(S === p) switchTo(DB.people[0].id); else save();
+    renderPeopleRows(); syncSw();
+  }
+});
+
+/* ================= add a person (also the very first start) ================= */
 let setupPB = 120;
+function openSetup(adding){
+  setupPB = 120; $('setupPB').textContent = fmt(setupPB); $('setupName').value = '';
+  $('setupBack').hidden = !adding;
+  show('setup');
+}
 document.querySelectorAll('[data-setup]').forEach(b => b.addEventListener('click', () => {
   setupPB = Math.max(15, Math.min(1200, setupPB + +b.dataset.setup)); $('setupPB').textContent = fmt(setupPB);
 }));
-$('setupGo').addEventListener('click', () => { S.pb = setupPB; save(); goHome(); });
+$('setupBack').addEventListener('click', openPeople);
+$('setupGo').addEventListener('click', () => {
+  const name = $('setupName').value.trim().slice(0, 24);
+  if(!name){ $('setupName').focus(); toast('Type a name first'); return; }
+  const used = DB.people.map(p => p.color);
+  const p = person({ name, pb:setupPB, color:COLORS.find(c => !used.includes(c)) || COLORS[DB.people.length % COLORS.length] }, DB.people.length);
+  DB.people.push(p); switchTo(p.id); goHome();
+});
 
-if(S.pb > 0) goHome(); else show('setup');
+if(S) goHome(); else openSetup(false);
 if('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js?v=' + VERSIONLOG[0].v).catch(() => {});
 checkForUpdate(false);
 </script>
