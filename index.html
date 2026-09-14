@@ -298,6 +298,7 @@
     <h2>Sound</h2>
     <div class="row">Voice<button class="sw" id="swVoice" role="switch"></button></div>
     <button class="choose" id="toVoices">Which voice<b id="voiceNow">—</b></button>
+    <div class="row">Extra voice guidance — rounds, halfway, record, results<button class="sw" id="swExtra" role="switch"></button></div>
     <div class="row">Say the time every 30 s during a PB hold<button class="sw" id="swCall" role="switch"></button></div>
     <div class="row">Play sound with the silent switch on<button class="sw" id="swMedia" role="switch"></button></div>
     <div class="row">Soft breathing-pace tones in routines<button class="sw" id="swPace" role="switch"></button></div>
@@ -327,6 +328,7 @@
       </ul>
       <p>The clock shows the time left in the part you're in. Press and hold anywhere for 1 second to stop the whole routine.</p>
       <p><b>Colours</b> — green: breathe · amber: get ready (last 10 s) · blue: hold · gold: past your PB · purple, indigo, deep blue: the routine parts.</p>
+      <p><b>Extra voice guidance</b> (Settings → Sound, on by default) — announces the table and every round ("Round 3 of 8", "Last round", "Last hold"), says "Halfway" on longer holds, "Relax" at your first contraction, "Ten seconds to your best" and "Record!" in a PB hold, leads the last breath of a plain breathe-up, and after a PB guides a few recovery breaths and reads your result aloud.</p>
       <p><b>Choosing the voice</b> — Settings → Sound → Which voice. Tap ▶ to listen, tap the name to choose it, and pick Slow, Calm or Normal speed. Each person has their own. Download better voices for free in iPhone Settings → Accessibility → Read &amp; Speak → Voices → English (look for Premium or Enhanced).</p>
       <p><b>Sound</b> — the voice says "Breathe" and "Hold", counts down the last seconds with beeps, so you can keep your eyes closed. Keep the screen on — the app keeps it awake by itself.</p>
       <p>Before a table you can change the number of rounds and the hold length with − and +. It remembers your choice.</p>
@@ -350,6 +352,9 @@
 <script>
 /* ================= version log (newest first — [0] IS the app version) ================= */
 const VERSIONLOG = [
+  { v:'1.5', d:'2026-09-14 06:08', title:'More voice guidance',
+    what:'The voice now announces the table and each round ("Round 3 of 8", "Last round", "Last hold"), says "Halfway" on longer holds and "Relax" at your first contraction, warns "Ten seconds to your best" and calls "Record!" in a PB hold, leads the last breath of a plain breathe-up, and after a PB guides recovery breaths and reads your result aloud. Turn it off with Extra voice guidance in Settings.',
+    why:'You can train with your eyes closed and still know exactly where you are and how it went.' },
   { v:'1.4', d:'2026-09-13 21:09', title:'Choose the voice',
     what:'Settings → Sound → Which voice: every English voice on the phone, the best-quality ones first. Tap ▶ to listen, tap a name to choose it, and pick Slow, Calm or Normal speed. Each person keeps their own choice. Novelty and old robot voices are hidden.',
     why:'A calmer, more natural voice to train with — using the iPhone\'s own free voices.' },
@@ -375,7 +380,7 @@ const REST_MIN = 10;                         // rest after a PB attempt
 /* ================= data ================= */
 function defaults(){
   return { pb:0, sessions:[], lastPbAttempt:0, backupAt:0,
-    set:{ voice:true, voiceURI:'', rate:0.9, callouts:true, media:true, breatheUp:120,
+    set:{ voice:true, voiceURI:'', rate:0.9, callouts:true, extra:true, media:true, breatheUp:120,
           co2Rounds:8, co2Pct:50, o2Rounds:8, o2Pct:80, routine:0, pace:true } };
 }
 const COLORS = ['#2f5fa0', '#b0506e', '#2e8b6e', '#8a5fb0', '#b07a2e', '#4f7f8f'];
@@ -567,20 +572,22 @@ function currentVoice(){
       || vs.find(v => /en-GB/i.test(v.lang) && /Daniel|Serena|Kate/i.test(v.name))
       || vs.find(v => /^en-GB/i.test(v.lang)) || vs[0] || null;
 }
-function speak(text, v, rate){
+function speak(text, v, rate, queue){
   if(!window.speechSynthesis) return;
   try{
-    speechSynthesis.cancel();
+    if(!queue) speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     if(v){ u.voice = v; u.lang = v.lang; } else u.lang = 'en-GB';
     u.rate = rate; u.volume = 1;
     speechSynthesis.speak(u);
   }catch(e){}
 }
-function say(text){
+function say(text, queue){
   if(!S.set.voice) return;
-  speak(text, currentVoice(), S.set.rate || .9);
+  speak(text, currentVoice(), S.set.rate || .9, queue);
 }
+const extra = () => S.set.voice && S.set.extra !== false;      // the "Extra voice guidance" switch
+const NUM = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve'];
 function sayTime(s){
   const m = Math.floor(s/60), r = s % 60;
   if(!m) return r + ' seconds';
@@ -753,8 +760,23 @@ function nextStep(){
     if(prev && prev.k === 'hold') breatheCue();
     else if(!prev || prev.pi !== st.pi) phaseCue();
   }
-  else if(st.k === 'breathe'){ breatheCue(); setTimeout(() => say(r.kind === 'pb' ? 'Breathe up. Slow and calm.' : 'Breathe'), 450); }
-  else { holdCue(); setTimeout(() => say('Hold'), 450); }
+  else if(st.k === 'breathe'){
+    breatheCue();
+    let line = 'Breathe';
+    if(r.kind === 'pb') line = 'Breathe up. Slow and calm.';
+    else if(extra()){
+      const n = st.round + 1, N = r.nRounds, name = r.kind === 'co2' ? 'C O 2 table' : 'O 2 table';
+      if(r.i === 0) line = `${name}. ${N} rounds. Breathe.`;
+      else if(n === N) line = 'Breathe. Last round.';
+      else line = `Breathe. Round ${n} of ${N}.`;
+    }
+    setTimeout(() => say(line), 450);
+  }
+  else {
+    holdCue();
+    const last = r.kind !== 'pb' && st.dur !== null && !r.steps.slice(r.i + 1).some(x => x.k === 'hold');
+    setTimeout(() => say(last && extra() ? 'Last hold' : 'Hold'), 450);
+  }
   renderRun();
 }
 
@@ -783,8 +805,9 @@ function tickRun(){
     const s = Math.floor(el);
     if(s !== r.lastLeft){
       r.lastLeft = s;
-      if(!r.recordHit && S.pb > 0 && s > S.pb){ r.recordHit = true; recordCue(); }
-      else if(S.set.callouts && s > 0 && s % 30 === 0) say(sayTime(s));
+      if(!r.recordHit && S.pb > 0 && s > S.pb){ r.recordHit = true; recordCue(); if(extra()) setTimeout(() => say('Record!'), 700); }
+      else if(extra() && S.pb >= 45 && s === S.pb - 10) say('Ten seconds to your best');
+      else if(S.set.callouts && s > 0 && s % 30 === 0 && !(extra() && S.pb >= 45 && s >= S.pb - 15 && s <= S.pb + 5)) say(sayTime(s));
     }
   }
   paintClock(el);
@@ -799,12 +822,16 @@ function cueFor(st, left){
     return;
   }
   if(st.k === 'breathe'){
+    const pbUp = run && run.kind === 'pb';
     if(left === 60 && st.dur >= 90) say('One minute');
     else if(left === 30 && st.dur >= 45) say('30 seconds');
-    else if(left === 10 && st.dur >= 15) say('Get ready');
-    else if(left <= 3) beep();
+    else if(pbUp && extra() && left === 14 && st.dur >= 30) say('Last slow exhale.');
+    else if(pbUp && extra() && left === 6 && st.dur >= 30) say('Now breathe in. Full, and relaxed.');
+    else if(left === 10 && st.dur >= 15 && !(pbUp && extra())) say('Get ready');
+    else if(left <= 3 && !(pbUp && extra())) beep();
   }else{
-    if(left === 30 && st.dur >= 60) say('30');
+    if(extra() && st.dur >= 80 && left === Math.round(st.dur / 2)) say('Halfway');
+    else if(left === 30 && st.dur >= 60) say('30');
     else if(left === 10 && st.dur >= 20) say('10');
     else if(left <= 3) beep();
   }
@@ -859,6 +886,7 @@ function contraction(){
   const el = (performance.now() - run.t0) / 1000;
   run.marks.push(Math.round(el));
   tick();
+  if(run.marks.length === 1 && extra()) setTimeout(() => say('Relax'), 250);
   if(navigator.vibrate) navigator.vibrate(25);
   const rp = $('ripple'); rp.style.transition = 'none'; rp.style.opacity = .18;
   requestAnimationFrame(() => { rp.style.transition = 'opacity .45s'; rp.style.opacity = 0; });
@@ -887,13 +915,30 @@ function finish(complete, pbEnded){
     S.lastPbAttempt = Date.now();
     if(isRecord) S.pb = h.secs;
     rec = { t:r.started, type:'pb', hold:h.secs, marks:h.marks, record:isRecord, pbBefore:r.pbBefore, complete:true, routine:r.routine || 0 };
-    if(isRecord){ recordCue(); setTimeout(() => say('Breathe. New personal best.'), 900); }
-    else { breatheCue(); setTimeout(() => say('Breathe'), 450); }
+    if(isRecord) recordCue(); else breatheCue();
+    if(!extra()) setTimeout(() => say(isRecord ? 'Breathe. New personal best.' : 'Breathe'), 700);
+    else {
+      const diff = r.pbBefore - h.secs;
+      const result = isRecord ? `${sayTime(h.secs)}. New personal best.`
+        : diff === 0 ? `${sayTime(h.secs)}. Exactly your best.`
+        : `${sayTime(h.secs)}. ${sayTime(diff)} short of your best.`;
+      setTimeout(() => say('Breathe. Recovery breaths. In, hold a moment, and out.'), 700);
+      setTimeout(() => say('In, hold, and out. Again.', true), 7000);
+      setTimeout(() => { if(!run) say(result + (isRecord ? ' Well done.' : ' Good work.')); }, 15000);
+    }
   }else{
     if(!r.holds.length){ say('Stopped'); goHome(); return; }
     rec = { t:r.started, type:r.kind, rounds:r.nRounds, holds:r.holds.map(h => ({ planned:h.planned, secs:h.secs, marks:h.marks, done:h.done })), complete };
-    if(complete){ finishCue(); setTimeout(() => say('Breathe. Well done.'), 900); }
-    else say('Stopped');
+    const ok = rec.holds.filter(h => h.done).length, N = rec.rounds;
+    if(complete){
+      finishCue();
+      if(!extra()) setTimeout(() => say('Breathe. Well done.'), 900);
+      else {
+        setTimeout(() => say('Breathe. Table done.'), 900);
+        setTimeout(() => { if(!run) say(`All ${N} rounds. Well done.`, true); }, 4500);
+      }
+    }
+    else say(extra() ? `Stopped. ${ok} of ${N} rounds done.` : 'Stopped');
   }
   S.sessions.push(rec); save();
   showDone(rec);
@@ -975,10 +1020,11 @@ function syncSw(){
   $('swCall').setAttribute('aria-checked', S.set.callouts);
   $('swMedia').setAttribute('aria-checked', S.set.media);
   $('swPace').setAttribute('aria-checked', S.set.pace);
+  $('swExtra').setAttribute('aria-checked', S.set.extra !== false);
   $('setPB').textContent = fmt(S.pb);
   $('backupWhen').textContent = DB.backupAt ? 'Last backup: ' + new Date(DB.backupAt).toLocaleDateString('sv-SE') : 'No backup saved yet.';
 }
-[['swVoice','voice'],['swCall','callouts'],['swMedia','media'],['swPace','pace']].forEach(([id,k]) =>
+[['swVoice','voice'],['swCall','callouts'],['swMedia','media'],['swPace','pace'],['swExtra','extra']].forEach(([id,k]) =>
   $(id).addEventListener('click', () => { S.set[k] = !S.set[k]; save(); syncSw(); }));
 document.querySelectorAll('[data-pbadj]').forEach(b => b.addEventListener('click', () => {
   S.pb = Math.max(15, Math.min(1200, S.pb + +b.dataset.pbadj)); save(); syncSw();
